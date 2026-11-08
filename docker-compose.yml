@@ -1,4 +1,3 @@
-# Phase 0 skeleton. Frontend service is enabled in Phase 4 once frontend/ has a Dockerfile.
 services:
   ollama:
     image: ollama/ollama:latest
@@ -6,16 +5,37 @@ services:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:11434/api/tags || exit 0"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
 
   backend:
-    build: ./backend
-    env_file: .env
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     environment:
+      DATABASE_URL: sqlite:////app/data/timecard.db
       OLLAMA_URL: http://ollama:11434
+      LLM_MODEL: qwen2.5:7b
+      LLM_FALLBACK_MODEL: qwen2.5:3b
+      LLM_TEMPERATURE: 0
+      PROMPT_VERSION: v1
+      LOG_LEVEL: INFO
     ports:
       - "8000:8000"
+    volumes:
+      - backend_data:/app/data
     depends_on:
       - ollama
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
 
   # frontend:
   #   build: ./frontend
@@ -26,3 +46,4 @@ services:
 
 volumes:
   ollama_data:
+  backend_data:
