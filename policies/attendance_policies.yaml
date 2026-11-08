@@ -1,0 +1,61 @@
+# Timecard Exception Resolution Policies
+# Dayforce AI Innovation Challenge
+
+clauses:
+  - id: "PUNCH-01"
+    name: "Missed Clock-Out Resolution"
+    exception_type: "missed_punch"
+    description: "When an employee clocks in but misses clock-out, determine shift end from schedule or manager verification. Default resolution aligns with scheduled shift end."
+    parameters:
+      default_resolution: "scheduled_end"
+
+  - id: "PUNCH-02"
+    name: "Missing Clock-In Resolution"
+    exception_type: "missed_punch"
+    description: "When an employee clocks out without a prior clock-in, verify attendance and record approved shift start based on assigned schedule."
+    parameters:
+      default_resolution: "scheduled_start"
+
+  - id: "OT-01"
+    name: "Daily Overtime Rule"
+    exception_type: "overtime"
+    description: "Hours worked in excess of 8.0 regular hours in a single workday qualify as daily overtime and require manager authorization."
+    parameters:
+      daily_threshold_hours: 8.0
+
+  - id: "OT-02"
+    name: "Weekly Overtime Rule"
+    exception_type: "overtime"
+    description: "Hours worked in excess of 40.0 regular hours in a workweek qualify as weekly overtime and require manager sign-off."
+    parameters:
+      weekly_threshold_hours: 40.0
+
+  - id: "SCHED-01"
+    name: "Tardiness and Schedule Adherence"
+    exception_type: "schedule_conflict"
+    description: "Arrivals exceeding 5 minutes after scheduled start are flagged as tardy; departures more than 5 minutes early are flagged as early exit."
+    parameters:
+      grace_period_minutes: 5
+
+  - id: "SCHED-02"
+    name: "Unscheduled Shift Work"
+    exception_type: "schedule_conflict"
+    description: "Shifts worked without a prior schedule assignment or outside scheduled shift boundaries require manager sign-off."
+    parameters:
+      requires_manager_approval: true
+
+  - id: "MEAL-01"
+    name: "Mandatory Meal Break (>5 Hours)"
+    exception_type: "meal_break"
+    description: "Shifts longer than 5.0 hours require at least one uninterrupted unpaid meal break of at least 30 minutes. Historical meal break punches must never be fabricated automatically."
+    parameters:
+      shift_threshold_hours: 5.0
+      min_break_minutes: 30
+
+  - id: "MEAL-02"
+    name: "Short or Interrupted Meal Break"
+    exception_type: "meal_break"
+    description: "Meal breaks shorter than 30 minutes or delayed beyond the 6th hour of work trigger a meal break exception requiring manager verification."
+    parameters:
+      min_break_minutes: 30
+      latest_start_hour: 6.0

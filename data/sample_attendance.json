@@ -1,0 +1,271 @@
+{
+  "employees": [
+    {
+      "id": "EMP-101",
+      "name": "Marcus Vance",
+      "department": "Operations",
+      "shift": "Day Shift",
+      "shift_start": "09:00",
+      "shift_end": "17:30"
+    },
+    {
+      "id": "EMP-102",
+      "name": "Elena Rostova",
+      "department": "Warehouse",
+      "shift": "Morning Shift",
+      "shift_start": "08:00",
+      "shift_end": "16:30"
+    },
+    {
+      "id": "EMP-103",
+      "name": "Sarah Jenkins",
+      "department": "Clinical Operations",
+      "shift": "Day Shift",
+      "shift_start": "09:00",
+      "shift_end": "17:00"
+    },
+    {
+      "id": "EMP-104",
+      "name": "David Kim",
+      "department": "Retail Services",
+      "shift": "Evening Shift",
+      "shift_start": "14:00",
+      "shift_end": "22:30"
+    },
+    {
+      "id": "EMP-105",
+      "name": "Amara Patel",
+      "department": "Customer Support",
+      "shift": "Night Shift",
+      "shift_start": "22:00",
+      "shift_end": "06:30"
+    }
+  ],
+  "schedules": [
+    {
+      "id": "SCHED-101-01",
+      "employee_id": "EMP-101",
+      "date": "2026-11-02",
+      "start_time": "2026-11-02T09:00:00",
+      "end_time": "2026-11-02T17:30:00",
+      "department_id": "OPS",
+      "scheduled_break_minutes": 30
+    },
+    {
+      "id": "SCHED-101-02",
+      "employee_id": "EMP-101",
+      "date": "2026-11-03",
+      "start_time": "2026-11-03T09:00:00",
+      "end_time": "2026-11-03T17:30:00",
+      "department_id": "OPS",
+      "scheduled_break_minutes": 30
+    },
+    {
+      "id": "SCHED-102-01",
+      "employee_id": "EMP-102",
+      "date": "2026-11-02",
+      "start_time": "2026-11-02T08:00:00",
+      "end_time": "2026-11-02T16:30:00",
+      "department_id": "WH",
+      "scheduled_break_minutes": 30
+    },
+    {
+      "id": "SCHED-103-01",
+      "employee_id": "EMP-103",
+      "date": "2026-11-05",
+      "start_time": "2026-11-05T09:00:00",
+      "end_time": "2026-11-05T17:00:00",
+      "department_id": "CLINICAL",
+      "scheduled_break_minutes": 30
+    },
+    {
+      "id": "SCHED-104-01",
+      "employee_id": "EMP-104",
+      "date": "2026-11-04",
+      "start_time": "2026-11-04T14:00:00",
+      "end_time": "2026-11-04T22:30:00",
+      "department_id": "RETAIL",
+      "scheduled_break_minutes": 30
+    }
+  ],
+  "punches": [
+    {
+      "id": "PUNCH-101-01",
+      "employee_id": "EMP-101",
+      "timestamp": "2026-11-02T08:58:00",
+      "punch_type": "IN",
+      "source": "terminal",
+      "notes": null
+    },
+    {
+      "id": "PUNCH-101-02",
+      "employee_id": "EMP-101",
+      "timestamp": "2026-11-02T12:30:00",
+      "punch_type": "BREAK_START",
+      "source": "terminal",
+      "notes": null
+    },
+    {
+      "id": "PUNCH-101-03",
+      "employee_id": "EMP-101",
+      "timestamp": "2026-11-02T13:00:00",
+      "punch_type": "BREAK_END",
+      "source": "terminal",
+      "notes": null
+    },
+    {
+      "id": "PUNCH-101-04",
+      "employee_id": "EMP-101",
+      "timestamp": "2026-11-02T17:32:00",
+      "punch_type": "OUT",
+      "source": "terminal",
+      "notes": null
+    },
+    {
+      "id": "PUNCH-101-05",
+      "employee_id": "EMP-101",
+      "timestamp": "2026-11-03T09:00:00",
+      "punch_type": "IN",
+      "source": "terminal",
+      "notes": null
+    },
+    {
+      "id": "PUNCH-101-06",
+      "employee_id": "EMP-101",
+      "timestamp": "2026-11-03T13:00:00",
+      "punch_type": "BREAK_START",
+      "source": "terminal",
+      "notes": null
+    },
+    {
+      "id": "PUNCH-101-07",
+      "employee_id": "EMP-101",
+      "timestamp": "2026-11-03T13:30:00",
+      "punch_type": "BREAK_END",
+      "source": "terminal",
+      "notes": null
+    },
+    {
+      "id": "PUNCH-101-08",
+      "employee_id": "EMP-101",
+      "timestamp": "2026-11-03T21:00:00",
+      "punch_type": "OUT",
+      "source": "terminal",
+      "notes": "Emergency operations coverage"
+    },
+    {
+      "id": "PUNCH-102-01",
+      "employee_id": "EMP-102",
+      "timestamp": "2026-11-02T08:00:00",
+      "punch_type": "IN",
+      "source": "badge_reader",
+      "notes": null
+    },
+    {
+      "id": "PUNCH-103-01",
+      "employee_id": "EMP-103",
+      "timestamp": "2026-11-05T09:05:00",
+      "punch_type": "IN",
+      "source": "terminal",
+      "notes": null
+    },
+    {
+      "id": "PUNCH-103-02",
+      "employee_id": "EMP-103",
+      "timestamp": "2026-11-05T16:05:00",
+      "punch_type": "OUT",
+      "source": "terminal",
+      "notes": null
+    },
+    {
+      "id": "PUNCH-104-01",
+      "employee_id": "EMP-104",
+      "timestamp": "2026-11-04T12:00:00",
+      "punch_type": "IN",
+      "source": "terminal",
+      "notes": "Unscheduled early arrival"
+    },
+    {
+      "id": "PUNCH-104-02",
+      "employee_id": "EMP-104",
+      "timestamp": "2026-11-04T22:30:00",
+      "punch_type": "OUT",
+      "source": "terminal",
+      "notes": null
+    }
+  ],
+  "exceptions": [
+    {
+      "id": "EXC-MP-102",
+      "employee_id": "EMP-102",
+      "type": "missed_punch",
+      "date": "2026-11-02",
+      "severity": "high",
+      "status": "pending_review",
+      "description": "Employee clocked in at 08:00 but no clock-out punch was recorded.",
+      "original_attendance": {
+        "checkIn": "08:00",
+        "checkOut": null,
+        "mealStart": null,
+        "mealEnd": null,
+        "totalHours": null
+      },
+      "policy_reference": "PUNCH-01",
+      "detected_at": "2026-11-02T17:00:00"
+    },
+    {
+      "id": "EXC-OT-101",
+      "employee_id": "EMP-101",
+      "type": "overtime",
+      "date": "2026-11-03",
+      "severity": "medium",
+      "status": "pending_review",
+      "description": "Total daily worked hours (11.50h) exceeded standard daily threshold of 8.00h.",
+      "original_attendance": {
+        "checkIn": "09:00",
+        "checkOut": "21:00",
+        "mealStart": "13:00",
+        "mealEnd": "13:30",
+        "totalHours": 11.5
+      },
+      "policy_reference": "OT-01",
+      "detected_at": "2026-11-03T21:15:00"
+    },
+    {
+      "id": "EXC-SC-104",
+      "employee_id": "EMP-104",
+      "type": "schedule_conflict",
+      "date": "2026-11-04",
+      "severity": "medium",
+      "status": "pending_review",
+      "description": "Clock-in at 12:00 occurred 120 minutes prior to scheduled shift start (14:00).",
+      "original_attendance": {
+        "checkIn": "12:00",
+        "checkOut": "22:30",
+        "mealStart": null,
+        "mealEnd": null,
+        "totalHours": 10.5
+      },
+      "policy_reference": "SCHED-01",
+      "detected_at": "2026-11-04T22:45:00"
+    },
+    {
+      "id": "EXC-MB-103",
+      "employee_id": "EMP-103",
+      "type": "meal_break",
+      "date": "2026-11-05",
+      "severity": "high",
+      "status": "pending_review",
+      "description": "Shift duration exceeded 5.0 hours (7.00h worked) without a recorded 30-minute meal break.",
+      "original_attendance": {
+        "checkIn": "09:05",
+        "checkOut": "16:05",
+        "mealStart": null,
+        "mealEnd": null,
+        "totalHours": 7.0
+      },
+      "policy_reference": "MEAL-01",
+      "detected_at": "2026-11-05T16:15:00"
+    }
+  ]
+}
