@@ -5,9 +5,56 @@ on:
     branches: [main]
 
 jobs:
-  backend:
+  detect:
     runs-on: ubuntu-latest
-    if: ${{ hashFiles('backend/app/main.py') != '' }}
+    outputs:
+      has_backend: ${{ steps.check.outputs.has_backend }}
+      has_frontend: ${{ steps.check.outputs.has_frontend }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check which components exist
+        id: check
+        run: |
+          if [ -f "backend/pyproject.toml" ]; then
+            echo "has_backend=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_backend=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if [ -f "frontend/package.json" ]; then
+            echo "has_frontend=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_frontend=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  detect:
+    needs: detect
+    if: needs.detect.outputs.has_backend == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      has_backend: ${{ steps.check.outputs.has_backend }}
+      has_frontend: ${{ steps.check.outputs.has_frontend }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check which components exist
+        id: check
+        run: |
+          if [ -f "backend/pyproject.toml" ]; then
+            echo "has_backend=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_backend=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if [ -f "frontend/package.json" ]; then
+            echo "has_frontend=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_frontend=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  backend:
+    needs: detect
+    if: needs.detect.outputs.has_backend == 'true'
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -19,8 +66,9 @@ jobs:
       - run: pytest backend
 
   frontend:
+    needs: detect
+    if: needs.detect.outputs.has_frontend == 'true'
     runs-on: ubuntu-latest
-    if: ${{ hashFiles('frontend/package.json') != '' }}
     defaults:
       run:
         working-directory: frontend
