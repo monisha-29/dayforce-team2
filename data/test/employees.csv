@@ -1,0 +1,8 @@
+id,name,department,shift,shift_start,shift_end
+EMP0001,Synthetic Employee 0001,Operations,Day,09:00,17:00
+EMP0006,Synthetic Employee 0006,Operations,Day,09:00,17:00
+EMP0011,Synthetic Employee 0011,Operations,Day,09:00,17:00
+EMP0016,Synthetic Employee 0016,Operations,Day,09:00,17:00
+EMP0021,Synthetic Employee 0021,Operations,Day,09:00,17:00
+EMP0026,Synthetic Employee 0026,Operations,Day,09:00,17:00
+EMP0031,Synthetic Employee 0031,Operations,Day,09:00,17:00

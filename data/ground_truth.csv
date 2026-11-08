@@ -1,0 +1,26 @@
+scenario_id,employee_id,date,exception_type,severity,policy_reference,expected,description
+SCN0002,EMP0002,2026-11-03,none,none,,no_exception,Scheduled 8-hour shift with a 30-minute break
+SCN0003,EMP0003,2026-11-04,none,none,,no_exception,Scheduled 8-hour shift with a 30-minute break
+SCN0004,EMP0004,2026-11-05,none,none,,no_exception,Scheduled 8-hour shift with a 30-minute break
+SCN0005,EMP0005,2026-11-06,none,none,,no_exception,Scheduled 8-hour shift with a 30-minute break
+SCN0007,EMP0007,2026-11-08,none,none,,no_exception,Scheduled 8-hour shift with a 30-minute break
+SCN0008,EMP0008,2026-11-09,none,none,,no_exception,Scheduled 8-hour shift with a 30-minute break
+SCN0009,EMP0009,2026-11-10,none,none,,no_exception,Scheduled 8-hour shift with a 30-minute break
+SCN0010,EMP0010,2026-11-11,none,none,,no_exception,Scheduled 8-hour shift with a 30-minute break
+SCN0012,EMP0012,2026-11-17,missed_punch,high,PUNCH-02,exception,Missing clock-in
+SCN0013,EMP0013,2026-11-18,missed_punch,high,PUNCH-01,exception,Consecutive IN punches
+SCN0014,EMP0014,2026-11-19,missed_punch,high,PUNCH-02,exception,Scheduled shift without punches
+SCN0015,EMP0015,2026-11-20,none,none,,no_exception,Exactly eight hours; no daily overtime
+SCN0017,EMP0017,2026-11-22,overtime,high,OT-01,exception,2.5 daily overtime hours
+SCN0018,EMP0018,2026-11-23,none,none,,no_exception,Exactly five-minute grace boundary
+SCN0019,EMP0019,2026-11-24,schedule_conflict,medium,SCHED-01,exception,Clock-in six minutes late
+SCN0020,EMP0020,2026-11-25,schedule_conflict,medium,SCHED-01,exception,Clock-out six minutes early
+SCN0022,EMP0022,2026-11-27,meal_break,high,MEAL-01,exception,Six-hour shift without explicit meal break
+SCN0023,EMP0023,2026-11-28,meal_break,medium,MEAL-02,exception,Twenty-minute recorded break
+SCN0024,EMP0024,2026-11-29,none,none,,no_exception,Thirty-minute recorded break
+SCN0025,EMP0025,2026-11-30,none,none,,no_exception,Eight-hour overnight shift
+SCN0027,EMP0027,2026-12-06,none,none,,no_exception,Two completed work intervals on one workday
+SCN0028,EMP0028,2026-12-07,none,none,,no_exception,Two completed work intervals on one workday
+SCN0029,EMP0029,2026-12-08,none,none,,no_exception,Two completed work intervals on one workday
+SCN0030,EMP0030,2026-12-09,none,none,,no_exception,Two completed work intervals on one workday
+SCN0032,EMP0032,2027-01-11,overtime,high,OT-02,exception,Weekly calculator fixture; cumulative regular hours target 40.25. This single-day row is a fixture marker; build the full 5/6-day week for execution.
