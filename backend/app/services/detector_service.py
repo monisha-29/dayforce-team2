@@ -22,6 +22,7 @@ from app.models.punch import PunchModel
 from app.models.schedule import ScheduleModel
 from app.schemas.common import Punch as SchemaPunch
 from app.schemas.common import Schedule as SchemaSchedule
+from app.services.audit_service import generate_trace_id, log_audit_event
 
 # Dynamic import boundary for Person 3's rules module.
 # Person 3's code currently resides on branch `origin/feature/rules-validation`.
@@ -128,16 +129,28 @@ def to_detector_schedule(schedule: Any) -> Any:
 
 
 def convert_detector_exception_to_model(detector_exc: Any) -> ExceptionModel:
-    """Convert a detector TimecardException instance into an unattached SQLAlchemy ExceptionModel.
+    """Convert a detector TimecardException instance or dict into an unattached SQLAlchemy ExceptionModel.
 
     Handles enum unwrapping, status mapping (open -> pending_review), and JSON extraction.
     """
-    # 1. Extract identifier or generate deterministically
-    raw_id = getattr(detector_exc, "exception_id", None) or getattr(detector_exc, "id", None)
-    employee_id = str(getattr(detector_exc, "employee_id", ""))
-    date_str = str(getattr(detector_exc, "date", ""))
+    is_dict = isinstance(detector_exc, dict)
 
-    raw_type = getattr(detector_exc, "exception_type", None) or getattr(detector_exc, "type", "")
+    # 1. Extract identifier or generate deterministically
+    raw_id = (
+        detector_exc.get("exception_id") or detector_exc.get("id")
+        if is_dict
+        else getattr(detector_exc, "exception_id", None) or getattr(detector_exc, "id", None)
+    )
+    employee_id = str(
+        detector_exc.get("employee_id", "") if is_dict else getattr(detector_exc, "employee_id", "")
+    )
+    date_str = str(detector_exc.get("date", "") if is_dict else getattr(detector_exc, "date", ""))
+
+    raw_type = (
+        detector_exc.get("exception_type") or detector_exc.get("type", "")
+        if is_dict
+        else getattr(detector_exc, "exception_type", None) or getattr(detector_exc, "type", "")
+    )
     type_str = str(getattr(raw_type, "value", raw_type))
 
     exc_id = (
@@ -147,23 +160,43 @@ def convert_detector_exception_to_model(detector_exc: Any) -> ExceptionModel:
     )
 
     # 2. Extract and normalize severity
-    raw_sev = getattr(detector_exc, "severity", "medium")
+    raw_sev = (
+        detector_exc.get("severity", "medium")
+        if is_dict
+        else getattr(detector_exc, "severity", "medium")
+    )
     severity_str = str(getattr(raw_sev, "value", raw_sev))
     severity_clean = severity_str.strip().lower()
 
     # 3. Map status: Person 3's detector outputs 'open', which maps to backend 'pending_review'
-    raw_status = getattr(detector_exc, "status", "pending_review")
+    raw_status = (
+        detector_exc.get("status", "pending_review")
+        if is_dict
+        else getattr(detector_exc, "status", "pending_review")
+    )
     status_str = str(getattr(raw_status, "value", raw_status))
     status_clean = status_str.strip().lower()
     if status_clean in ("open", "detected", "new"):
         status_clean = "pending_review"
 
     # 4. Extract description and policy reference
-    description = str(getattr(detector_exc, "description", ""))
-    policy_reference = str(getattr(detector_exc, "policy_reference", ""))
+    description = str(
+        detector_exc.get("description", "")
+        if is_dict
+        else getattr(detector_exc, "description", "")
+    )
+    policy_reference = str(
+        detector_exc.get("policy_reference", "")
+        if is_dict
+        else getattr(detector_exc, "policy_reference", "")
+    )
 
     # 5. Extract original attendance payload
-    original_att = getattr(detector_exc, "original_attendance", {})
+    original_att = (
+        detector_exc.get("original_attendance", {})
+        if is_dict
+        else getattr(detector_exc, "original_attendance", {})
+    )
     if hasattr(original_att, "model_dump"):
         attendance_dict = original_att.model_dump(mode="json")
     elif isinstance(original_att, dict):
@@ -173,10 +206,11 @@ def convert_detector_exception_to_model(detector_exc: Any) -> ExceptionModel:
 
     # 6. Extract detected timestamp
     detected_at = (
-        getattr(detector_exc, "created_at", None)
+        (detector_exc.get("created_at") or detector_exc.get("detected_at"))
+        if is_dict
+        else getattr(detector_exc, "created_at", None)
         or getattr(detector_exc, "detected_at", None)
-        or datetime.now(UTC)
-    )
+    ) or datetime.now(UTC)
 
     return ExceptionModel(
         id=exc_id,
@@ -251,6 +285,18 @@ def run_detection_pipeline(
 
         session.add(model)
         newly_saved_count += 1
+
+        # Emit audit trail event for newly detected exception
+        log_audit_event(
+            session=session,
+            action="Exception detected",
+            user="Detector Suite",
+            status="info",
+            trace_id=generate_trace_id(),
+            exception_id=model.id,
+            detail=f"Detected {model.type}: {model.description}",
+            flags=[],
+        )
 
     # 6. Commit transaction
     if newly_saved_count > 0:

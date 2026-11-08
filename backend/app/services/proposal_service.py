@@ -210,6 +210,9 @@ def generate_proposal_for_exception(
             schedule_start=sched_start_str,
             schedule_end=sched_end_str,
             policy_clause_id=clause.id,
+            original_exception=exc,
+            original_punches=detector_punches,
+            original_schedule=detector_schedule,
         )
 
         val_summary = validate_timecard_proposal(

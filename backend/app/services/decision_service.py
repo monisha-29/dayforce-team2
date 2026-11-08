@@ -7,7 +7,7 @@ Rejected or blocked proposals never modify timecard records.
 """
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi import HTTPException, status
@@ -19,7 +19,7 @@ from app.models.proposal import ProposalModel
 from app.models.punch import PunchModel
 from app.schemas.decision import DecisionRequest, DecisionResponse
 from app.services.audit_service import generate_trace_id, log_audit_event
-from app.services.rules_adapter import TIME_REGEX, compute_net_hours
+from app.services.rules_adapter import TIME_REGEX, compute_net_hours, parse_time_str
 
 
 def _apply_timecard_to_punches(
@@ -29,19 +29,38 @@ def _apply_timecard_to_punches(
     timecard_data: dict[str, Any],
     source: str = "manager_approved_proposal",
 ) -> None:
-    """Synchronize approved timecard punch times with the punches table."""
+    """Synchronize approved timecard punch times with the punches table.
+
+    Correctly accounts for overnight shift date rollovers (e.g. 22:00 -> 06:30)
+    by persisting post-midnight punches to base_date + 1 day and checking both
+    shift start date and rollover date to match existing punches.
+    """
     check_in = timecard_data.get("checkIn") or timecard_data.get("check_in")
     check_out = timecard_data.get("checkOut") or timecard_data.get("check_out")
     meal_start = timecard_data.get("mealStart") or timecard_data.get("meal_start")
     meal_end = timecard_data.get("mealEnd") or timecard_data.get("meal_end")
 
+    base_date = datetime.fromisoformat(date_str).date()
+    t_in = parse_time_str(str(check_in) if check_in else None)
+    in_m = t_in[0] * 60 + t_in[1] if t_in else None
+
     def _sync_punch(punch_type: str, time_val: str | None) -> None:
         if not time_val or not TIME_REGEX.match(str(time_val).strip()):
             return
 
-        target_dt = datetime.fromisoformat(f"{date_str}T{str(time_val).strip()}:00")
+        t_parsed = parse_time_str(str(time_val).strip())
+        if not t_parsed:
+            return
 
-        # Find existing punch of same type on the same date for this employee
+        val_m = t_parsed[0] * 60 + t_parsed[1]
+        is_next_day = in_m is not None and punch_type != "IN" and val_m < in_m
+        punch_date = base_date + timedelta(days=1) if is_next_day else base_date
+        target_dt = datetime(
+            punch_date.year, punch_date.month, punch_date.day, t_parsed[0], t_parsed[1], 0
+        )
+        target_date_str = punch_date.isoformat()
+
+        # Find existing punch of same type on shift start date or rollover date
         existing_punches = (
             session.query(PunchModel)
             .filter(
@@ -53,7 +72,8 @@ def _apply_timecard_to_punches(
 
         match = None
         for p in existing_punches:
-            if p.timestamp.strftime("%Y-%m-%d") == date_str:
+            p_date_str = p.timestamp.strftime("%Y-%m-%d")
+            if p_date_str in (date_str, target_date_str):
                 match = p
                 break
 

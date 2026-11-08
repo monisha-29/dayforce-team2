@@ -18,7 +18,7 @@ Core Principle: "The LLM suggests. Code decides. A human approves."
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any
 
@@ -269,14 +269,28 @@ def timecard_to_llm_proposal(
             pt_str = str(getattr(pt, "value", pt)).upper()
             existing_punch_types.add(pt_str)
 
-    punches: list[Any] = []
+    base_date = datetime.fromisoformat(shift_date).date()
     check_in = proposed_tc.get("checkIn") or proposed_tc.get("check_in")
     check_out = proposed_tc.get("checkOut") or proposed_tc.get("check_out")
     meal_start = proposed_tc.get("mealStart") or proposed_tc.get("meal_start")
     meal_end = proposed_tc.get("mealEnd") or proposed_tc.get("meal_end")
 
+    t_in = parse_time_str(str(check_in) if check_in else None)
+    in_m = t_in[0] * 60 + t_in[1] if t_in else None
+
+    def _get_punch_dt(time_val: str, punch_type: str) -> datetime:
+        t_parsed = parse_time_str(time_val)
+        if not t_parsed:
+            return datetime.fromisoformat(f"{shift_date}T{time_val.strip()}:00")
+        val_m = t_parsed[0] * 60 + t_parsed[1]
+        is_next_day = in_m is not None and punch_type != "IN" and val_m < in_m
+        p_date = base_date + timedelta(days=1) if is_next_day else base_date
+        return datetime(p_date.year, p_date.month, p_date.day, t_parsed[0], t_parsed[1], 0)
+
+    punches: list[Any] = []
+
     if check_in and ("checkIn" in changed_fields or "check_in" in changed_fields):
-        dt = datetime.fromisoformat(f"{shift_date}T{str(check_in).strip()}:00")
+        dt = _get_punch_dt(str(check_in).strip(), "IN")
         action = "modify" if "IN" in existing_punch_types else "insert"
         punches.append(
             punch_cls(
@@ -289,7 +303,7 @@ def timecard_to_llm_proposal(
         )
 
     if check_out and ("checkOut" in changed_fields or "check_out" in changed_fields):
-        dt = datetime.fromisoformat(f"{shift_date}T{str(check_out).strip()}:00")
+        dt = _get_punch_dt(str(check_out).strip(), "OUT")
         action = "modify" if "OUT" in existing_punch_types else "insert"
         punches.append(
             punch_cls(
@@ -302,7 +316,7 @@ def timecard_to_llm_proposal(
         )
 
     if meal_start and ("mealStart" in changed_fields or "meal_start" in changed_fields):
-        dt = datetime.fromisoformat(f"{shift_date}T{str(meal_start).strip()}:00")
+        dt = _get_punch_dt(str(meal_start).strip(), "BREAK_START")
         action = "modify" if "BREAK_START" in existing_punch_types else "insert"
         punches.append(
             punch_cls(
@@ -315,7 +329,7 @@ def timecard_to_llm_proposal(
         )
 
     if meal_end and ("mealEnd" in changed_fields or "meal_end" in changed_fields):
-        dt = datetime.fromisoformat(f"{shift_date}T{str(meal_end).strip()}:00")
+        dt = _get_punch_dt(str(meal_end).strip(), "BREAK_END")
         action = "modify" if "BREAK_END" in existing_punch_types else "insert"
         punches.append(
             punch_cls(
@@ -352,9 +366,14 @@ def llm_proposal_to_timecard(
         punches = proposal.get("proposed_punches", [])
 
     for p in punches:
-        pt = getattr(p, "punch_type", None)
+        if isinstance(p, dict):
+            pt = p.get("punch_type")
+            ts = p.get("timestamp")
+        else:
+            pt = getattr(p, "punch_type", None)
+            ts = getattr(p, "timestamp", None)
+
         pt_str = str(getattr(pt, "value", pt)).upper()
-        ts = getattr(p, "timestamp", None)
         if isinstance(ts, str):
             time_str = ts.split("T")[-1][:5]
         elif isinstance(ts, datetime):
@@ -453,6 +472,7 @@ def validate_timecard_proposal(
     original_schedule: Any | None = None,
     original_exception: Any | None = None,
     changed_fields: list[str] | None = None,
+    suggested_action: str | None = None,
 ) -> ValidationSummary:
     """Execute the 5 deterministic safety checks.
 
@@ -505,6 +525,29 @@ def validate_timecard_proposal(
         p3_punches = [to_detector_punch(p) for p in (original_punches or [])]
         p3_schedule = to_detector_schedule(original_schedule) if original_schedule else None
 
+        # Derive suggested action matching Person 3's validator requirements:
+        # - Overtime: "approve_overtime" (required if net hours > daily limit or citing OT-01)
+        # - Schedule conflict: "acknowledge_schedule_deviation" (required to acknowledge deviation)
+        # - Missed punch: "insert_punch"
+        # - Default: "correct_timecard"
+        derived_action: str
+        if suggested_action:
+            derived_action = suggested_action
+        else:
+            orig_t = original_type or getattr(original_exception, "type", "")
+            if hasattr(orig_t, "value"):
+                orig_t = orig_t.value
+            orig_t_lower = str(orig_t).lower()
+
+            if "overtime" in orig_t_lower or (cited_clause_id and "ot" in cited_clause_id.lower()):
+                derived_action = "approve_overtime"
+            elif "conflict" in orig_t_lower or "schedule" in orig_t_lower:
+                derived_action = "acknowledge_schedule_deviation"
+            elif "miss" in orig_t_lower:
+                derived_action = "insert_punch"
+            else:
+                derived_action = "correct_timecard"
+
         # Construct LLMProposal payload
         llm_prop = timecard_to_llm_proposal(
             exception_id=exc_id,
@@ -514,6 +557,7 @@ def validate_timecard_proposal(
             reasoning=reasoning,
             shift_date=shift_date,
             employee_id=target_emp_id,
+            suggested_action=derived_action,
             original_punches=p3_punches,
         )
 
@@ -724,6 +768,9 @@ def generate_fallback_proposal(
     schedule_start: str | None,
     schedule_end: str | None,
     policy_clause_id: str,
+    original_exception: Any | None = None,
+    original_punches: Sequence[Any] | None = None,
+    original_schedule: Any | None = None,
 ) -> dict[str, Any]:
     """Execute deterministic fallback logic aligned with Person 3's 5.0h boundary rule.
 
@@ -734,6 +781,48 @@ def generate_fallback_proposal(
     - Overtime: Packages recorded hours for manager authorization.
     - Schedule conflict: Acknowledges actual punches with schedule reference.
     """
+    # -------------------------------------------------------------
+    # IF PERSON 3 MODULE AVAILABLE: DELEGATE DIRECTLY
+    # -------------------------------------------------------------
+    if (
+        RULES_MODULE_AVAILABLE
+        and Person3FallbackEngine is not None
+        and original_exception is not None
+    ):
+        from app.services.detector_service import to_detector_punch, to_detector_schedule
+
+        p3_exc = to_detector_exception(original_exception)
+        p3_punches = [to_detector_punch(p) for p in (original_punches or [])]
+        p3_sched = to_detector_schedule(original_schedule) if original_schedule else None
+
+        engine = Person3FallbackEngine()
+        fallback_res = engine.generate_fallback(p3_exc, p3_punches, p3_sched)
+
+        if fallback_res.success and fallback_res.proposed_correction:
+            proposed_tc, changed = llm_proposal_to_timecard(
+                proposal=fallback_res.proposed_correction,
+                original_timecard=original_attendance,
+            )
+            return {
+                "proposed_timecard": proposed_tc,
+                "changed_fields": changed,
+                "reason": fallback_res.reason,
+                "recommendation": "Review deterministic fallback proposal aligned with policy rules.",
+                "confidence": 0.85,
+                "missing_information": [],
+                "blocked": False,
+            }
+        else:
+            return {
+                "proposed_timecard": dict(original_attendance),
+                "changed_fields": [],
+                "reason": fallback_res.reason,
+                "recommendation": "Escalate to manager for manual review and punch adjustment.",
+                "confidence": 0.50,
+                "missing_information": ["Manual verification required"],
+                "blocked": True,
+            }
+
     clean_type = exception_type.strip().lower()
     check_in = original_attendance.get("checkIn") or original_attendance.get("check_in")
     check_out = original_attendance.get("checkOut") or original_attendance.get("check_out")

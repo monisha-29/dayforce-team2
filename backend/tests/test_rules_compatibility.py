@@ -551,3 +551,389 @@ def test_person3_detect_all_exceptions_pipeline_integration(person3_rules_module
         assert summary2.newly_saved_count == 0
         assert summary2.duplicate_skipped_count == summary1.detected_count
 
+
+def test_b1_overnight_shift_proposal_translation_and_persistence() -> None:
+    """B1 Regression: Verify overnight shift clock-out date rollover in translation and punch persistence."""
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+
+    from app.database import Base
+    from app.models.employee import EmployeeModel
+    from app.models.punch import PunchModel
+    from app.services.decision_service import _apply_timecard_to_punches
+
+    # 1. Proposal translation: 22:00 to 06:30 on 2026-11-02
+    overnight_tc = {"checkIn": "22:00", "checkOut": "06:30"}
+    prop = timecard_to_llm_proposal(
+        exception_id="EXC-NIGHT-1",
+        proposed_tc=overnight_tc,
+        changed_fields=["checkIn", "checkOut"],
+        policy_id="PUNCH-01",
+        reasoning="Overnight shift punch assignment",
+        shift_date="2026-11-02",
+        employee_id="EMP-NIGHT-1",
+    )
+    assert len(prop.proposed_punches) == 2
+    p_in = next(
+        p
+        for p in prop.proposed_punches
+        if str(getattr(p.punch_type, "value", p.punch_type)).upper() == "IN"
+    )
+    p_out = next(
+        p
+        for p in prop.proposed_punches
+        if str(getattr(p.punch_type, "value", p.punch_type)).upper() == "OUT"
+    )
+    assert p_in.timestamp == datetime(2026, 11, 2, 22, 0)
+    assert p_out.timestamp == datetime(2026, 11, 3, 6, 30)
+
+    # 2. Punch persistence upon approval in DB
+    test_engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(bind=test_engine)
+
+    with Session(test_engine) as session:
+        emp = EmployeeModel(
+            id="EMP-NIGHT-1",
+            name="Bob Night",
+            department="Operations",
+            shift="Night",
+            shift_start="22:00",
+            shift_end="06:30",
+        )
+        session.add(emp)
+        session.commit()
+
+        # Apply overnight shift approval
+        _apply_timecard_to_punches(
+            session=session,
+            employee_id="EMP-NIGHT-1",
+            date_str="2026-11-02",
+            timecard_data=overnight_tc,
+            source="manager_approved_proposal",
+        )
+        session.commit()
+
+        punches = session.query(PunchModel).filter(PunchModel.employee_id == "EMP-NIGHT-1").all()
+        assert len(punches) == 2
+        db_in = next(p for p in punches if p.punch_type == "IN")
+        db_out = next(p for p in punches if p.punch_type == "OUT")
+        assert db_in.timestamp == datetime(2026, 11, 2, 22, 0)
+        assert db_out.timestamp == datetime(2026, 11, 3, 6, 30)
+
+        # 3. Manager edit scenario: edit clock-out to 06:45
+        edited_tc = {"checkIn": "22:00", "checkOut": "06:45"}
+        _apply_timecard_to_punches(
+            session=session,
+            employee_id="EMP-NIGHT-1",
+            date_str="2026-11-02",
+            timecard_data=edited_tc,
+            source="manager_edited_proposal",
+        )
+        session.commit()
+
+        punches_after_edit = (
+            session.query(PunchModel).filter(PunchModel.employee_id == "EMP-NIGHT-1").all()
+        )
+        assert len(punches_after_edit) == 2
+        db_out_edited = next(p for p in punches_after_edit if p.punch_type == "OUT")
+        assert db_out_edited.timestamp == datetime(2026, 11, 3, 6, 45)
+
+        # 4. Normal same-day shift
+        same_day_tc = {"checkIn": "09:00", "checkOut": "17:00"}
+        _apply_timecard_to_punches(
+            session=session,
+            employee_id="EMP-NIGHT-1",
+            date_str="2026-11-04",
+            timecard_data=same_day_tc,
+            source="manager_approved_proposal",
+        )
+        session.commit()
+
+        day_punches = (
+            session.query(PunchModel)
+            .filter(
+                PunchModel.employee_id == "EMP-NIGHT-1",
+                PunchModel.timestamp >= datetime(2026, 11, 4, 0, 0),
+            )
+            .all()
+        )
+        assert len(day_punches) == 2
+        assert all(p.timestamp.date() == datetime(2026, 11, 4).date() for p in day_punches)
+
+
+def test_b2_suggested_action_derivation_for_overtime_and_schedule_conflict(
+    person3_rules_module: Any,
+) -> None:
+    """B2 Regression: Verify suggested_action derivation allows validator to accept overtime and schedule conflicts."""
+    from app.rules.models.exception import (
+        ExceptionType,
+        Punch,
+        PunchType,
+        Schedule,
+        Severity,
+        TimecardException,
+    )
+
+    # 1. Overtime exception: 08:00 to 18:00 (10 gross hours - 1h break = 9h > 8h limit)
+    orig_in = Punch(
+        id="P-OT-1",
+        employee_id="EMP-OT-1",
+        timestamp=datetime(2026, 11, 2, 8, 0),
+        punch_type=PunchType.IN,
+    )
+    orig_break_start = Punch(
+        id="P-OT-2",
+        employee_id="EMP-OT-1",
+        timestamp=datetime(2026, 11, 2, 12, 0),
+        punch_type=PunchType.BREAK_START,
+    )
+    orig_break_end = Punch(
+        id="P-OT-3",
+        employee_id="EMP-OT-1",
+        timestamp=datetime(2026, 11, 2, 13, 0),
+        punch_type=PunchType.BREAK_END,
+    )
+    orig_out = Punch(
+        id="P-OT-4",
+        employee_id="EMP-OT-1",
+        timestamp=datetime(2026, 11, 2, 18, 0),
+        punch_type=PunchType.OUT,
+    )
+    sched_ot = Schedule(
+        id="S-OT-1",
+        employee_id="EMP-OT-1",
+        date="2026-11-02",
+        start_time=datetime(2026, 11, 2, 8, 0),
+        end_time=datetime(2026, 11, 2, 17, 0),
+    )
+    exc_ot = TimecardException(
+        exception_id="EXC-OT-1",
+        employee_id="EMP-OT-1",
+        exception_type=ExceptionType.OVERTIME,
+        date="2026-11-02",
+        severity=Severity.MEDIUM,
+        description="Daily overtime threshold exceeded (9.0h worked)",
+        policy_reference="OT-01",
+    )
+
+    # validate_timecard_proposal should automatically derive suggested_action="approve_overtime"
+    ot_summary = validate_timecard_proposal(
+        proposed_tc={
+            "checkIn": "08:00",
+            "checkOut": "18:00",
+            "mealStart": "12:00",
+            "mealEnd": "13:00",
+        },
+        cited_clause_id="OT-01",
+        reasoning="Manager authorized overtime for project deadline.",
+        original_type="overtime",
+        schedule_start="08:00",
+        schedule_end="17:00",
+        original_punches=[orig_in, orig_break_start, orig_break_end, orig_out],
+        original_schedule=sched_ot,
+        original_exception=exc_ot,
+    )
+    assert ot_summary.valid is True
+    assert ot_summary.blocked is False
+    assert ot_summary.status == "PASSED"
+
+    # 2. Schedule conflict: actual departure 16:30 instead of 17:00 on a 09:00-17:00 shift
+    sched_dev = Schedule(
+        id="S-SCHED-1",
+        employee_id="EMP-DEV-1",
+        date="2026-11-02",
+        start_time=datetime(2026, 11, 2, 9, 0),
+        end_time=datetime(2026, 11, 2, 17, 0),
+    )
+    punch_dev_in = Punch(
+        id="P-DEV-1",
+        employee_id="EMP-DEV-1",
+        timestamp=datetime(2026, 11, 2, 9, 0),
+        punch_type=PunchType.IN,
+    )
+    exc_sched = TimecardException(
+        exception_id="EXC-SCHED-1",
+        employee_id="EMP-DEV-1",
+        exception_type=ExceptionType.SCHEDULE_CONFLICT,
+        date="2026-11-02",
+        severity=Severity.LOW,
+        description="Early departure deviation from assigned schedule",
+        policy_reference="SCHED-01",
+    )
+    sched_summary = validate_timecard_proposal(
+        proposed_tc={
+            "checkIn": "09:00",
+            "checkOut": "16:30",
+            "mealStart": "12:00",
+            "mealEnd": "12:30",
+        },
+        cited_clause_id="SCHED-01",
+        reasoning="Acknowledged approved early departure.",
+        original_type="schedule_conflict",
+        schedule_start="09:00",
+        schedule_end="17:00",
+        original_punches=[punch_dev_in],
+        original_schedule=sched_dev,
+        original_exception=exc_sched,
+    )
+    assert sched_summary.valid is True
+    assert sched_summary.blocked is False
+
+
+def test_b3_initial_exception_detection_audit_trail() -> None:
+    """B3 Regression: Verify detection pipeline logs 'Exception detected' audit event for new exceptions."""
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+
+    from app.database import Base
+    from app.models.audit_log import AuditEventModel
+    from app.models.employee import EmployeeModel
+    from app.models.punch import PunchModel
+    from app.models.schedule import ScheduleModel
+    from app.services.detector_service import run_detection_pipeline
+
+    test_engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(bind=test_engine)
+
+    with Session(test_engine) as session:
+        emp = EmployeeModel(
+            id="EMP-AUDIT-1",
+            name="Charlie Auditor",
+            department="Finance",
+            shift="Day",
+            shift_start="09:00",
+            shift_end="17:00",
+        )
+        sched = ScheduleModel(
+            id="SCHED-AUDIT-1",
+            employee_id="EMP-AUDIT-1",
+            date="2026-11-02",
+            start_time=datetime(2026, 11, 2, 9, 0),
+            end_time=datetime(2026, 11, 2, 17, 0),
+        )
+        # Missing clock-out punch
+        punch_in = PunchModel(
+            id="PUNCH-AUDIT-1",
+            employee_id="EMP-AUDIT-1",
+            punch_type="IN",
+            timestamp=datetime(2026, 11, 2, 9, 0),
+            source="terminal",
+        )
+        session.add_all([emp, sched, punch_in])
+        session.commit()
+
+        # Run pipeline with a mock detector
+        def mock_detector(punches: Any, schedules: Any) -> list[Any]:
+            return [
+                {
+                    "exception_id": "EXC-DETERM-001",
+                    "employee_id": "EMP-AUDIT-1",
+                    "exception_type": "missed_punch",
+                    "severity": "high",
+                    "date": "2026-11-02",
+                    "description": "Missing clock-out punch",
+                    "policy_reference": "PUNCH-02",
+                    "status": "open",
+                }
+            ]
+
+        summary1 = run_detection_pipeline(session=session, detector_fn=mock_detector)
+        assert summary1.newly_saved_count == 1
+
+        # Verify audit event exists
+        audit_events = (
+            session.query(AuditEventModel)
+            .filter(AuditEventModel.exception_id == "EXC-DETERM-001")
+            .all()
+        )
+        assert len(audit_events) == 1
+        ev = audit_events[0]
+        assert ev.action == "Exception detected"
+        assert ev.user == "Detector Suite"
+        assert ev.status == "info"
+        assert "missed_punch" in ev.detail
+
+        # Second pipeline run: duplicate exception must NOT create a duplicate audit event
+        summary2 = run_detection_pipeline(session=session, detector_fn=mock_detector)
+        assert summary2.newly_saved_count == 0
+        assert summary2.duplicate_skipped_count == 1
+
+        audit_events_after = (
+            session.query(AuditEventModel)
+            .filter(AuditEventModel.exception_id == "EXC-DETERM-001")
+            .all()
+        )
+        assert len(audit_events_after) == 1
+
+
+def test_b4_fallback_proposal_delegation_to_person3_engine(person3_rules_module: Any) -> None:
+    """B4 Regression: Verify generate_fallback_proposal delegates to Person 3's real FallbackEngine."""
+    from app.rules.models.exception import (
+        ExceptionType,
+        Punch,
+        PunchType,
+        Schedule,
+        Severity,
+        TimecardException,
+    )
+
+    orig_in = Punch(
+        id="P-FB-1",
+        employee_id="EMP-FB-1",
+        timestamp=datetime(2026, 11, 2, 9, 0),
+        punch_type=PunchType.IN,
+    )
+    # Under 5.0h (09:00 to 13:00 = 4.0h): safely resolves clock-out
+    sched_4h = Schedule(
+        id="S-FB-1",
+        employee_id="EMP-FB-1",
+        date="2026-11-02",
+        start_time=datetime(2026, 11, 2, 9, 0),
+        end_time=datetime(2026, 11, 2, 13, 0),
+    )
+    exc = TimecardException(
+        exception_id="EXC-FB-1",
+        employee_id="EMP-FB-1",
+        exception_type=ExceptionType.MISSED_PUNCH,
+        date="2026-11-02",
+        severity=Severity.HIGH,
+        description="Missing clock-out punch",
+        policy_reference="PUNCH-02",
+    )
+
+    fb_4h = generate_fallback_proposal(
+        exception_type="missed_punch",
+        original_attendance={"checkIn": "09:00", "checkOut": None},
+        schedule_start="09:00",
+        schedule_end="13:00",
+        policy_clause_id="PUNCH-02",
+        original_exception=exc,
+        original_punches=[orig_in],
+        original_schedule=sched_4h,
+    )
+    assert fb_4h["blocked"] is False
+    assert fb_4h["proposed_timecard"]["checkOut"] == "13:00"
+    assert fb_4h["proposed_timecard"]["totalHours"] == 4.0
+
+    # Over 5.0h without break (09:00 to 15:00 = 6.0h): escalates to manager without fabricating punches
+    sched_6h = Schedule(
+        id="S-FB-2",
+        employee_id="EMP-FB-1",
+        date="2026-11-02",
+        start_time=datetime(2026, 11, 2, 9, 0),
+        end_time=datetime(2026, 11, 2, 15, 0),
+    )
+    fb_6h = generate_fallback_proposal(
+        exception_type="missed_punch",
+        original_attendance={"checkIn": "09:00", "checkOut": None},
+        schedule_start="09:00",
+        schedule_end="15:00",
+        policy_clause_id="PUNCH-02",
+        original_exception=exc,
+        original_punches=[orig_in],
+        original_schedule=sched_6h,
+    )
+    assert fb_6h["blocked"] is True
+    assert "5.0h" in fb_6h["reason"]
+    assert "fabricat" in fb_6h["reason"].lower()
+
