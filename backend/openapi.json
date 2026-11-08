@@ -1,0 +1,1001 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Timecard Exception Agent API",
+    "description": "Backend API for finding timecard exceptions, generating policy-grounded proposals, validating fixes, and recording manager decisions.",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Health Check",
+        "description": "Health check endpoint confirming service readiness.",
+        "operationId": "health_check_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Health Check Health Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/exceptions": {
+      "get": {
+        "tags": [
+          "Exceptions"
+        ],
+        "summary": "List Attendance Exceptions",
+        "description": "Retrieve a list of attendance exceptions with optional filtering by search term, type, status, and severity.",
+        "operationId": "list_exceptions_api_v1_exceptions_get",
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Search employee name, employee ID, or exception ID",
+              "title": "Search"
+            },
+            "description": "Search employee name, employee ID, or exception ID"
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by exception type",
+              "title": "Type"
+            },
+            "description": "Filter by exception type"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by review status",
+              "title": "Status"
+            },
+            "description": "Filter by review status"
+          },
+          {
+            "name": "severity",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by severity level",
+              "title": "Severity"
+            },
+            "description": "Filter by severity level"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AttendanceException"
+                  },
+                  "title": "Response List Exceptions Api V1 Exceptions Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/exceptions/{id}": {
+      "get": {
+        "tags": [
+          "Exceptions"
+        ],
+        "summary": "Get Exception Detail",
+        "description": "Retrieve full details for an attendance exception, including employee data, original timecard, and active AI proposal.",
+        "operationId": "get_exception_api_v1_exceptions__id__get",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/exceptions/{id}/proposal": {
+      "post": {
+        "tags": [
+          "Exceptions"
+        ],
+        "summary": "Generate Proposal",
+        "description": "Trigger AI proposal generation (with retrieval, validation, retry, and fallback) for an exception.",
+        "operationId": "generate_proposal_api_v1_exceptions__id__proposal_post",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Proposal"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/exceptions/{id}/escalate": {
+      "post": {
+        "tags": [
+          "Exceptions"
+        ],
+        "summary": "Escalate Exception",
+        "description": "Escalate an unresolved or contentious exception directly to HR operations/manager.",
+        "operationId": "escalate_exception_api_v1_exceptions__id__escalate_post",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EscalateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/exceptions/{id}/audit": {
+      "get": {
+        "tags": [
+          "Exceptions"
+        ],
+        "summary": "Get Exception Audit Trail",
+        "description": "Retrieve the chronological, append-only audit trail for a specific exception.",
+        "operationId": "get_exception_audit_api_v1_exceptions__id__audit_get",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AuditEvent"
+                  },
+                  "title": "Response Get Exception Audit Api V1 Exceptions  Id  Audit Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/proposals/{id}/decision": {
+      "post": {
+        "tags": [
+          "Proposals"
+        ],
+        "summary": "Submit Proposal Decision",
+        "description": "Submit manager review action (approve, edit, or reject) for a proposed timecard correction.",
+        "operationId": "submit_decision_api_v1_proposals__id__decision_post",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/audit": {
+      "get": {
+        "tags": [
+          "Audit"
+        ],
+        "summary": "List All Audit Events",
+        "description": "Retrieve the global chronological audit log across all exceptions and actions.",
+        "operationId": "list_all_audits_api_v1_audit_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AuditEvent"
+                  },
+                  "type": "array",
+                  "title": "Response List All Audits Api V1 Audit Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AttendanceException": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "employee": {
+            "$ref": "#/components/schemas/Employee"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "severity": {
+            "type": "string",
+            "title": "Severity"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "original": {
+            "$ref": "#/components/schemas/Timecard"
+          },
+          "proposalId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposalid"
+          },
+          "detectedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ],
+            "title": "Detectedat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "employee",
+          "type",
+          "date",
+          "severity",
+          "status",
+          "original",
+          "detectedAt"
+        ],
+        "title": "AttendanceException",
+        "description": "Attendance exception representation for list and queue views."
+      },
+      "AuditEvent": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "exceptionId": {
+            "type": "string",
+            "title": "Exceptionid"
+          },
+          "timestamp": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ],
+            "title": "Timestamp"
+          },
+          "action": {
+            "type": "string",
+            "title": "Action"
+          },
+          "user": {
+            "type": "string",
+            "title": "User"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "traceId": {
+            "type": "string",
+            "title": "Traceid"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "flags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Flags"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "exceptionId",
+          "timestamp",
+          "action",
+          "user",
+          "status",
+          "traceId"
+        ],
+        "title": "AuditEvent",
+        "description": "Individual recorded audit event matching frontend timeline."
+      },
+      "DecisionRequest": {
+        "properties": {
+          "decision": {
+            "$ref": "#/components/schemas/DecisionType"
+          },
+          "editedTimecard": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Timecard"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "decision"
+        ],
+        "title": "DecisionRequest",
+        "description": "Request payload submitted when a manager reviews a proposal."
+      },
+      "DecisionResponse": {
+        "properties": {
+          "exceptionId": {
+            "type": "string",
+            "title": "Exceptionid"
+          },
+          "newStatus": {
+            "type": "string",
+            "title": "Newstatus"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "traceId": {
+            "type": "string",
+            "title": "Traceid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "exceptionId",
+          "newStatus",
+          "message",
+          "traceId"
+        ],
+        "title": "DecisionResponse",
+        "description": "Response returned upon successfully recording a manager decision."
+      },
+      "DecisionType": {
+        "type": "string",
+        "enum": [
+          "approve",
+          "edit",
+          "reject"
+        ],
+        "title": "DecisionType",
+        "description": "Permitted manager decision actions."
+      },
+      "Employee": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "department": {
+            "type": "string",
+            "title": "Department"
+          },
+          "shift": {
+            "type": "string",
+            "title": "Shift"
+          },
+          "shiftStart": {
+            "type": "string",
+            "title": "Shiftstart"
+          },
+          "shiftEnd": {
+            "type": "string",
+            "title": "Shiftend"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "department",
+          "shift",
+          "shiftStart",
+          "shiftEnd"
+        ],
+        "title": "Employee",
+        "description": "Employee representation matching frontend and backend requirements."
+      },
+      "EscalateRequest": {
+        "properties": {
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "title": "EscalateRequest",
+        "description": "Request payload for manual manager or agent escalation."
+      },
+      "ExceptionDetail": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "employee": {
+            "$ref": "#/components/schemas/Employee"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "severity": {
+            "type": "string",
+            "title": "Severity"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "original": {
+            "$ref": "#/components/schemas/Timecard"
+          },
+          "proposalId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposalid"
+          },
+          "detectedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ],
+            "title": "Detectedat"
+          },
+          "proposal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Proposal"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "employee",
+          "type",
+          "date",
+          "severity",
+          "status",
+          "original",
+          "detectedAt"
+        ],
+        "title": "ExceptionDetail",
+        "description": "Detailed exception view including current proposal if generated."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "Proposal": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "exceptionId": {
+            "type": "string",
+            "title": "Exceptionid"
+          },
+          "proposed": {
+            "$ref": "#/components/schemas/Timecard"
+          },
+          "changedFields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Changedfields"
+          },
+          "detectedIssue": {
+            "type": "string",
+            "title": "Detectedissue"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "policyTitle": {
+            "type": "string",
+            "title": "Policytitle"
+          },
+          "policyClauseId": {
+            "type": "string",
+            "title": "Policyclauseid"
+          },
+          "policyExcerpt": {
+            "type": "string",
+            "title": "Policyexcerpt"
+          },
+          "recommendation": {
+            "type": "string",
+            "title": "Recommendation"
+          },
+          "confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "default": 1.0
+          },
+          "missingInformation": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Missinginformation"
+          },
+          "validators": {
+            "items": {
+              "$ref": "#/components/schemas/ValidatorResult"
+            },
+            "type": "array",
+            "title": "Validators"
+          },
+          "blocked": {
+            "type": "boolean",
+            "title": "Blocked",
+            "default": false
+          },
+          "generatedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ],
+            "title": "Generatedat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "exceptionId",
+          "proposed",
+          "detectedIssue",
+          "reason",
+          "policyTitle",
+          "policyClauseId",
+          "policyExcerpt",
+          "recommendation",
+          "generatedAt"
+        ],
+        "title": "Proposal",
+        "description": "Proposal generated for resolving a timecard exception."
+      },
+      "Timecard": {
+        "properties": {
+          "checkIn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkin"
+          },
+          "checkOut": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkout"
+          },
+          "mealStart": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mealstart"
+          },
+          "mealEnd": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mealend"
+          },
+          "totalHours": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Totalhours"
+          }
+        },
+        "type": "object",
+        "title": "Timecard",
+        "description": "Timecard summary with punch times and total computed hours."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "ValidatorResult": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "passed": {
+            "type": "boolean",
+            "title": "Passed"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "passed"
+        ],
+        "title": "ValidatorResult",
+        "description": "Result of an individual proposal safety check."
+      }
+    }
+  }
+}
