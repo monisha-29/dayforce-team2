@@ -78,9 +78,9 @@ Executes **5 Independent Deterministic Checks**:
 
 ### 4. Rule-Based Fallback Engine (`fallback.py`)
 * Activated when Person 4's LLM proposal fails validation twice.
-* Generates deterministic corrections using assigned schedules (e.g. aligning missing clock-out with scheduled end and inserting standard midpoint meal break).
-* Refuses to hallucinate: If schedule information is absent, it escalates to the manager with no automated modification.
-* All fallback proposals are validated through `ProposalValidator` before return.
+* Generates deterministic corrections strictly using assigned schedule boundaries for short shifts (<5h) or shifts with confirmed breaks.
+* **Anti-Fabrication & Escalation Guarantee:** Code **never** invents historical employee punches or fabricates unrecorded meal breaks. If attendance cannot be established safely without guessing (e.g., shifts exceeding 5h with no break punches, meal break violations, or missing schedules), it immediately escalates to the manager with `requires_manager_review=True` and `proposed_correction=None`.
+* All fallback proposals are independently validated through `ProposalValidator` before return.
 
 ---
 
@@ -163,7 +163,7 @@ Person 4's retry prompt passes `error["message"]` back to Ollama for the single 
 
 ## Testing & Quality
 
-* **Test Suite:** 52 tests covering all modules, boundary conditions, edge cases, security, and Hypothesis property-based testing.
+* **Test Suite:** 59 tests across 9 test modules covering all modules, boundary conditions, edge cases, security, and Hypothesis property-based testing.
 * **Execution:**
 ```bash
 pytest backend/tests

@@ -4,6 +4,7 @@ import logging
 from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from typing import Any
 
 from ..hours_calculator import CalculatorConfig
 from ..models.exception import (
@@ -38,6 +39,59 @@ class RulesConfig:
     calculator: CalculatorConfig = field(default_factory=CalculatorConfig)
     schedule_conflict: ScheduleConflictConfig = field(default_factory=ScheduleConflictConfig)
     meal_break: MealBreakConfig = field(default_factory=MealBreakConfig)
+
+    @classmethod
+    def from_policies(cls, registry: Any) -> "RulesConfig":
+        """Construct RulesConfig dynamically from parameters in loaded policy clauses."""
+        daily_ot_clause = registry.get_clause("OT-01") if hasattr(registry, "get_clause") else None
+        daily_limit = (
+            float(daily_ot_clause.parameters.get("daily_threshold_hours", 8.0))
+            if daily_ot_clause and hasattr(daily_ot_clause, "parameters")
+            else 8.0
+        )
+
+        weekly_ot_clause = registry.get_clause("OT-02") if hasattr(registry, "get_clause") else None
+        weekly_limit = (
+            float(weekly_ot_clause.parameters.get("weekly_threshold_hours", 40.0))
+            if weekly_ot_clause and hasattr(weekly_ot_clause, "parameters")
+            else 40.0
+        )
+
+        sched_clause = registry.get_clause("SCHED-01") if hasattr(registry, "get_clause") else None
+        grace_period = (
+            int(sched_clause.parameters.get("grace_period_minutes", 5))
+            if sched_clause and hasattr(sched_clause, "parameters")
+            else 5
+        )
+
+        meal_clause = registry.get_clause("MEAL-01") if hasattr(registry, "get_clause") else None
+        meal_threshold = (
+            float(meal_clause.parameters.get("shift_threshold_hours", 5.0))
+            if meal_clause and hasattr(meal_clause, "parameters")
+            else 5.0
+        )
+        min_break = (
+            int(meal_clause.parameters.get("min_break_minutes", 30))
+            if meal_clause and hasattr(meal_clause, "parameters")
+            else 30
+        )
+
+        return cls(
+            calculator=CalculatorConfig(
+                daily_regular_hours_limit=daily_limit,
+                weekly_regular_hours_limit=weekly_limit,
+                meal_break_threshold_hours=meal_threshold,
+                min_meal_break_minutes=min_break,
+            ),
+            schedule_conflict=ScheduleConflictConfig(
+                late_grace_period_minutes=grace_period,
+                early_exit_grace_period_minutes=grace_period,
+            ),
+            meal_break=MealBreakConfig(
+                shift_threshold_hours=meal_threshold,
+                min_break_minutes=min_break,
+            ),
+        )
 
 
 def detect_shift_exceptions(

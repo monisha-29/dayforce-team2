@@ -243,3 +243,46 @@ def test_check5_future_timestamp_rejected(validator: ProposalValidator) -> None:
     res = validator.validate(punches, payload)
     assert res.valid is False
     assert any(e.code == "FUTURE_TIMESTAMP_PROHIBITED" for e in res.errors)
+
+
+def test_check5_timestamp_date_mismatch(validator: ProposalValidator, base_context) -> None:
+    """Proposals with punch dates completely detached from the shift date are rejected."""
+    sched, punches, exc = base_context
+    payload = {
+        "exception_id": "EXC-100",
+        "suggested_action": "insert_punch",
+        "proposed_punches": [
+            {
+                "punch_type": "OUT",
+                "timestamp": "2026-11-20T17:00:00",
+                "action": "insert",
+            }  # 13 days later!
+        ],
+        "policy_citations": ["PUNCH-01"],
+        "reasoning": "Wrong date punch",
+    }
+    res = validator.validate(punches, payload, sched, exc)
+    assert res.valid is False
+    assert any(e.code == "TIMESTAMP_DATE_MISMATCH" for e in res.errors)
+
+
+def test_check5_employee_ownership_mismatch(validator: ProposalValidator, base_context) -> None:
+    """Proposals attempting to modify or assign punches to a different employee are blocked."""
+    sched, punches, exc = base_context
+    payload = {
+        "exception_id": "EXC-100",
+        "suggested_action": "insert_punch",
+        "proposed_punches": [
+            {
+                "punch_type": "OUT",
+                "timestamp": "2026-11-07T13:00:00",
+                "action": "insert",
+                "employee_id": "OTHER-EMPLOYEE-999",  # Mismatch! Target is E-100
+            }
+        ],
+        "policy_citations": ["PUNCH-01"],
+        "reasoning": "Cross-employee punch tampering",
+    }
+    res = validator.validate(punches, payload, sched, exc)
+    assert res.valid is False
+    assert any(e.code == "EMPLOYEE_OWNERSHIP_MISMATCH" for e in res.errors)

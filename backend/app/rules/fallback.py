@@ -12,7 +12,6 @@ Principles:
 """
 
 from collections.abc import Sequence
-from datetime import timedelta
 
 from .detectors import RulesConfig
 from .models.exception import (
@@ -79,57 +78,46 @@ class FallbackEngine:
         # Case A: Clocked in, missing clock-out
         if in_punches and not out_punches:
             first_in = in_punches[0]
-            # Use scheduled end time
             proposed_out = schedule.end_time
 
-            # If proposed shift > 5 hours, include a compliant 30m meal break if not already taken
-            proposed_punches: list[ProposedPunch] = []
+            # Safety Rule: Never invent or fabricate historical meal break punches.
+            # If the shift span from clock-in to scheduled end exceeds the meal break threshold
+            # and no break was recorded, code cannot safely infer clock-out without fabricating break punches.
             gross_hours = (proposed_out - first_in.timestamp).total_seconds() / 3600.0
-
             has_break = any(
                 p.punch_type in (PunchType.BREAK_START, PunchType.BREAK_END) for p in sorted_punches
             )
-            if gross_hours >= 5.0 and not has_break:
-                # Add 30-min break at shift midpoint
-                midpoint = first_in.timestamp + timedelta(hours=gross_hours / 2.0)
-                break_start = midpoint.replace(second=0, microsecond=0)
-                break_end = break_start + timedelta(minutes=30)
-                proposed_punches.append(
-                    ProposedPunch(
-                        punch_type=PunchType.BREAK_START,
-                        timestamp=break_start,
-                        action="insert",
-                        notes="Fallback: Standard 30m meal break at shift midpoint",
-                    )
-                )
-                proposed_punches.append(
-                    ProposedPunch(
-                        punch_type=PunchType.BREAK_END,
-                        timestamp=break_end,
-                        action="insert",
-                        notes="Fallback: Standard 30m meal break at shift midpoint",
-                    )
+
+            meal_thresh = self.config.calculator.meal_break_threshold_hours
+            if gross_hours >= meal_thresh and not has_break:
+                return self._escalate(
+                    exception=exception,
+                    reason=(
+                        f"Cannot safely infer missing clock-out for shifts exceeding {meal_thresh:.1f}h "
+                        f"without fabricating unrecorded meal break punches. "
+                        f"Actual attendance and break status must be verified by manager."
+                    ),
                 )
 
-            proposed_punches.append(
+            # For shifts under meal break threshold (or where break punches exist),
+            # propose scheduled end clock-out for manager review
+            proposed_punches = [
                 ProposedPunch(
                     punch_type=PunchType.OUT,
                     timestamp=proposed_out,
                     action="insert",
-                    notes="Fallback: Aligned missing clock-out with scheduled shift end",
+                    notes="Fallback: Proposed clock-out aligned with scheduled shift end (pending manager review)",
                 )
-            )
+            ]
 
             proposal = LLMProposal(
                 exception_id=exception.exception_id,
                 suggested_action="insert_punch",
                 proposed_punches=proposed_punches,
-                policy_citations=["PUNCH-01", "MEAL-01"]
-                if (gross_hours >= 5.0 and not has_break)
-                else ["PUNCH-01"],
+                policy_citations=["PUNCH-01"],
                 reasoning=(
                     f"Deterministic fallback: Missing clock-out inferred from assigned schedule "
-                    f"(end time: {schedule.end_time.strftime('%H:%M')})."
+                    f"(end time: {schedule.end_time.strftime('%H:%M')}). Requires manager verification."
                 ),
             )
             return self._validate_and_wrap(exception, punches, schedule, proposal)
@@ -211,50 +199,19 @@ class FallbackEngine:
         punches: Sequence[Punch],
         schedule: Schedule | None,
     ) -> FallbackResult:
-        """Fallback for missing or short meal break."""
-        sorted_punches = sorted(punches, key=lambda p: p.timestamp)
-        if len(sorted_punches) < 2:
-            return self._escalate(
-                exception=exception,
-                reason="Insufficient punches to place a deterministic meal break. Escalating to manager.",
-            )
+        """Fallback for missing or short meal break.
 
-        first_in = sorted_punches[0]
-        last_out = sorted_punches[-1]
-        shift_duration_hours = (last_out.timestamp - first_in.timestamp).total_seconds() / 3600.0
-
-        if shift_duration_hours < 5.0:
-            return self._escalate(
-                exception=exception,
-                reason="Shift is under 5 hours; meal break not required. Escalating to manager.",
-            )
-
-        # Insert 30-min break at shift midpoint
-        midpoint = first_in.timestamp + timedelta(hours=shift_duration_hours / 2.0)
-        break_start = midpoint.replace(second=0, microsecond=0)
-        break_end = break_start + timedelta(minutes=30)
-
-        proposal = LLMProposal(
-            exception_id=exception.exception_id,
-            suggested_action="insert_meal_break",
-            proposed_punches=[
-                ProposedPunch(
-                    punch_type=PunchType.BREAK_START,
-                    timestamp=break_start,
-                    action="insert",
-                    notes="Fallback: 30m meal break inserted at midpoint",
-                ),
-                ProposedPunch(
-                    punch_type=PunchType.BREAK_END,
-                    timestamp=break_end,
-                    action="insert",
-                    notes="Fallback: 30m meal break inserted at midpoint",
-                ),
-            ],
-            policy_citations=["MEAL-01"],
-            reasoning="Deterministic fallback: Inserted standard 30-minute meal break at shift midpoint.",
+        Safety Principle: Deterministic fallback never fabricates historical
+        employee meal break punches. Actual meal break times, waivers, or
+        penalties must be investigated and approved by a manager.
+        """
+        return self._escalate(
+            exception=exception,
+            reason=(
+                "Meal break violation cannot be resolved by fabricating employee punch times. "
+                "Manager must verify whether an unrecorded break was taken or authorize a meal penalty."
+            ),
         )
-        return self._validate_and_wrap(exception, punches, schedule, proposal)
 
     def _validate_and_wrap(
         self,

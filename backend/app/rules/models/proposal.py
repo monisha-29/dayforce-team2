@@ -14,6 +14,7 @@ class ProposedPunch(BaseModel):
     punch_type: PunchType
     timestamp: datetime
     action: str = "insert"  # "insert", "modify", "remove", "keep"
+    employee_id: str | None = None
     notes: str | None = None
 
     @field_validator("punch_type", mode="before")

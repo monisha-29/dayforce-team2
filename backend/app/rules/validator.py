@@ -420,15 +420,61 @@ class ProposalValidator:
                     )
                 )
 
-        if not any(
-            e.code
-            in (
-                "UNAUTHORIZED_PROPOSAL_TAMPERING",
-                "EXCESSIVE_SHIFT_DURATION",
-                "FUTURE_TIMESTAMP_PROHIBITED",
+        # 5d. Check timestamp and shift date alignment
+        if original_schedule or original_exception:
+            ref_date_str = (
+                original_schedule.date if original_schedule else original_exception.date  # type: ignore[union-attr]
             )
-            for e in errors
-        ):
+            try:
+                ref_date = datetime.fromisoformat(ref_date_str).date()
+                for p in proposal.proposed_punches:
+                    p_date = p.timestamp.date()
+                    if abs((p_date - ref_date).days) > 1:
+                        errors.append(
+                            ValidationErrorItem(
+                                code="TIMESTAMP_DATE_MISMATCH",
+                                message=(
+                                    f"Proposed punch timestamp {p.timestamp.isoformat()} "
+                                    f"deviates from target shift date {ref_date_str}."
+                                ),
+                                field="proposed_punches",
+                            )
+                        )
+            except (ValueError, TypeError):
+                pass
+
+        # 5e. Check employee ownership consistency
+        target_emp_id = (
+            original_exception.employee_id
+            if original_exception
+            else (
+                original_schedule.employee_id
+                if original_schedule
+                else (original_punches[0].employee_id if original_punches else None)
+            )
+        )
+        if target_emp_id:
+            for p in proposal.proposed_punches:
+                if p.employee_id and p.employee_id.strip() != target_emp_id.strip():
+                    errors.append(
+                        ValidationErrorItem(
+                            code="EMPLOYEE_OWNERSHIP_MISMATCH",
+                            message=(
+                                f"Proposed punch employee_id '{p.employee_id}' "
+                                f"does not match target employee '{target_emp_id}'."
+                            ),
+                            field="proposed_punches",
+                        )
+                    )
+
+        limit_error_codes = {
+            "UNAUTHORIZED_PROPOSAL_TAMPERING",
+            "EXCESSIVE_SHIFT_DURATION",
+            "FUTURE_TIMESTAMP_PROHIBITED",
+            "TIMESTAMP_DATE_MISMATCH",
+            "EMPLOYEE_OWNERSHIP_MISMATCH",
+        }
+        if not any(e.code in limit_error_codes for e in errors):
             checks_map["limits_valid"] = True
             check_details.append(
                 ValidationCheckDetail(

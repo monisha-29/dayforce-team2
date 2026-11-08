@@ -99,30 +99,55 @@ class PolicyRegistry:
             if default_path.is_dir():
                 self.load_from_directory(default_path)
 
-    def load_from_directory(self, directory: Path) -> None:
-        """Scan directory for YAML policy files and load clauses."""
+    def load_from_directory(self, directory: Path, clear_existing: bool = False) -> int:
+        """Scan directory for YAML policy files and load clauses.
+
+        If clear_existing is True and YAML files exist, previous clauses are cleared
+        so that ONLY actual policy files from disk are registered.
+        Returns the count of registered clauses.
+        """
         if not directory.exists() or not directory.is_dir():
-            return
+            return 0
 
         yaml_files = list(directory.glob("*.yaml")) + list(directory.glob("*.yml"))
+        if not yaml_files:
+            return 0
+
+        if clear_existing:
+            self.clauses.clear()
+
+        loaded_count = 0
         for yfile in yaml_files:
             try:
                 with open(yfile, "r", encoding="utf-8") as f:
                     data = yaml.safe_load(f)
                     if isinstance(data, list):
                         for item in data:
-                            self._register_clause_dict(item)
+                            if self._register_clause_dict(item):
+                                loaded_count += 1
                     elif isinstance(data, dict):
                         if "clauses" in data and isinstance(data["clauses"], list):
                             for item in data["clauses"]:
-                                self._register_clause_dict(item)
+                                if self._register_clause_dict(item):
+                                    loaded_count += 1
                         else:
-                            self._register_clause_dict(data)
+                            if self._register_clause_dict(data):
+                                loaded_count += 1
             except (yaml.YAMLError, OSError, ValueError) as err:
                 # Fallback to existing clauses if YAML has syntax issues
                 logger.warning("Failed to parse policy YAML file %s: %s", yfile, err)
 
-    def _register_clause_dict(self, item: dict[str, Any]) -> None:
+        return loaded_count
+
+    def clear(self) -> None:
+        """Clear all registered policy clauses."""
+        self.clauses.clear()
+
+    def register_clause(self, clause: PolicyClause) -> None:
+        """Manually register an active policy clause."""
+        self.clauses[clause.id.strip()] = clause
+
+    def _register_clause_dict(self, item: dict[str, Any]) -> bool:
         cid = item.get("id") or item.get("clause_id")
         if cid and isinstance(cid, str):
             self.clauses[cid.strip()] = PolicyClause(
@@ -132,6 +157,8 @@ class PolicyRegistry:
                 description=item.get("description", ""),
                 parameters=item.get("parameters", {}),
             )
+            return True
+        return False
 
     def is_valid_clause_id(self, clause_id: str) -> bool:
         """Verify whether a cited clause ID actually exists in the registry."""
