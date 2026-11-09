@@ -36,6 +36,9 @@ try:
         Punch as RulePunch,
     )
     from app.rules.models.exception import (
+        PunchType as RulePunchType,
+    )
+    from app.rules.models.exception import (
         Schedule as RuleSchedule,
     )
     from app.rules.models.exception import (
@@ -46,6 +49,7 @@ try:
 except ImportError:
     person3_detect_all_exceptions = None  # type: ignore[assignment]
     RulePunch = None  # type: ignore[assignment, misc]
+    RulePunchType = None  # type: ignore[assignment, misc]
     RuleSchedule = None  # type: ignore[assignment, misc]
     RuleTimecardException = None  # type: ignore[assignment, misc]
     RULES_MODULE_AVAILABLE = False
@@ -95,14 +99,31 @@ def to_detector_punch(punch: Any) -> Any:
 
     Uses Person 3's RulePunch when available, otherwise uses the compatible SchemaPunch.
     """
-    target_cls = RulePunch if RULES_MODULE_AVAILABLE and RulePunch is not None else SchemaPunch
-    if isinstance(punch, target_cls):
+    if RULES_MODULE_AVAILABLE and RulePunch is not None and RulePunchType is not None:
+        if isinstance(punch, RulePunch):
+            return punch
+        raw_pt = getattr(punch, "punch_type", "IN")
+        pt_str = str(getattr(raw_pt, "value", raw_pt)).upper()
+        try:
+            pt_enum = RulePunchType(pt_str)
+        except (ValueError, KeyError):
+            pt_enum = RulePunch.normalize_punch_type(pt_str)
+        return RulePunch(
+            id=getattr(punch, "id", None),
+            employee_id=str(punch.employee_id),
+            timestamp=punch.timestamp,
+            punch_type=pt_enum,
+            source=str(getattr(punch, "source", "terminal")),
+            notes=getattr(punch, "notes", None),
+        )
+
+    if isinstance(punch, SchemaPunch):
         return punch
-    return target_cls(
+    return SchemaPunch(
         id=getattr(punch, "id", None),
         employee_id=str(punch.employee_id),
         timestamp=punch.timestamp,
-        punch_type=str(getattr(punch.punch_type, "value", punch.punch_type)),  # type: ignore[arg-type]  # normalised by the model validator
+        punch_type=str(getattr(punch.punch_type, "value", punch.punch_type)),
         source=str(getattr(punch, "source", "terminal")),
         notes=getattr(punch, "notes", None),
     )

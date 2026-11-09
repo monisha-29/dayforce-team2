@@ -357,6 +357,7 @@ def person3_rules_module() -> Any:
 
     import app.rules
     from app.services import detector_service, rules_adapter
+
     importlib.reload(detector_service)
     importlib.reload(rules_adapter)
 

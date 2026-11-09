@@ -19,28 +19,30 @@ export const Route = createFileRoute("/approvals")({
       },
     ],
   }),
-  component: function ApprovalsPage() {
-    const { data, isLoading, error, refetch } = useQuery(
-      exceptionsQuery({ status: "Awaiting Approval" }),
-    );
-    return (
-      <>
-        <PageHeader
-          title="Manager Approvals"
-          description="Validated AI proposals waiting for your approve, edit or reject decision."
-        />
-        <div className="card-elevated overflow-hidden">
-          {error ? (
-            <div className="p-4">
-              <ErrorState error={error} onRetry={refetch} />
-            </div>
-          ) : isLoading ? (
-            <RowsSkeleton />
-          ) : (
-            <ExceptionsTable rows={data!} />
-          )}
-        </div>
-      </>
-    );
-  },
+  component: ApprovalsPage,
 });
+
+function ApprovalsPage() {
+  const { data, isLoading, error, refetch } = useQuery(
+    exceptionsQuery({ status: "Awaiting Approval" }),
+  );
+  return (
+    <>
+      <PageHeader
+        title="Manager Approvals"
+        description="Validated AI proposals waiting for your approve, edit or reject decision."
+      />
+      <div className="card-elevated overflow-hidden">
+        {error ? (
+          <div className="p-4">
+            <ErrorState error={error} onRetry={refetch} />
+          </div>
+        ) : isLoading ? (
+          <RowsSkeleton />
+        ) : (
+          <ExceptionsTable rows={data!} />
+        )}
+      </div>
+    </>
+  );
+}

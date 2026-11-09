@@ -19,26 +19,28 @@ export const Route = createFileRoute("/escalated")({
       },
     ],
   }),
-  component: function EscalatedPage() {
-    const { data, isLoading, error, refetch } = useQuery(exceptionsQuery({ status: "Escalated" }));
-    return (
-      <>
-        <PageHeader
-          title="Escalated Cases"
-          description="AI fallback, blocked proposals and manager escalations requiring manual review."
-        />
-        <div className="card-elevated overflow-hidden">
-          {error ? (
-            <div className="p-4">
-              <ErrorState error={error} onRetry={refetch} />
-            </div>
-          ) : isLoading ? (
-            <RowsSkeleton />
-          ) : (
-            <ExceptionsTable rows={data!} />
-          )}
-        </div>
-      </>
-    );
-  },
+  component: EscalatedPage,
 });
+
+function EscalatedPage() {
+  const { data, isLoading, error, refetch } = useQuery(exceptionsQuery({ status: "Escalated" }));
+  return (
+    <>
+      <PageHeader
+        title="Escalated Cases"
+        description="AI fallback, blocked proposals and manager escalations requiring manual review."
+      />
+      <div className="card-elevated overflow-hidden">
+        {error ? (
+          <div className="p-4">
+            <ErrorState error={error} onRetry={refetch} />
+          </div>
+        ) : isLoading ? (
+          <RowsSkeleton />
+        ) : (
+          <ExceptionsTable rows={data!} />
+        )}
+      </div>
+    </>
+  );
+}

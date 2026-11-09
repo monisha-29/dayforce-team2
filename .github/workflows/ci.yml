@@ -54,8 +54,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      # The project is built with bun and has no package-lock.json, so `npm ci` cannot be used
-      - run: npm install --legacy-peer-deps
+      # --legacy-peer-deps: the project was created with bun and its peer ranges need it
+      - run: npm ci --legacy-peer-deps
       - run: npm run lint --if-present
       - run: npx tsc --noEmit
       - run: npm test --if-present
