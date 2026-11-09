@@ -3,7 +3,11 @@ import { api } from "./client";
 import type { DecisionRequest, ExceptionFilters } from "./types";
 
 export const exceptionsQuery = (filters: ExceptionFilters = {}) =>
-  queryOptions({ queryKey: ["exceptions", filters], queryFn: () => api.listExceptions(filters), staleTime: 30_000 });
+  queryOptions({
+    queryKey: ["exceptions", filters],
+    queryFn: () => api.listExceptions(filters),
+    staleTime: 30_000,
+  });
 
 export const exceptionQuery = (id: string) =>
   queryOptions({ queryKey: ["exception", id], queryFn: () => api.getException(id) });
@@ -11,16 +15,25 @@ export const exceptionQuery = (id: string) =>
 export const auditQuery = (id: string) =>
   queryOptions({ queryKey: ["audit", id], queryFn: () => api.getAudit(id) });
 
-export const allAuditQuery = () => queryOptions({ queryKey: ["audit", "all"], queryFn: () => api.getAllAudit() });
+export const allAuditQuery = () =>
+  queryOptions({ queryKey: ["audit", "all"], queryFn: () => api.getAllAudit() });
 
 function useInvalidateAll() {
   const qc = useQueryClient();
-  return () => Promise.all([qc.invalidateQueries({ queryKey: ["exceptions"] }), qc.invalidateQueries({ queryKey: ["exception"] }), qc.invalidateQueries({ queryKey: ["audit"] })]);
+  return () =>
+    Promise.all([
+      qc.invalidateQueries({ queryKey: ["exceptions"] }),
+      qc.invalidateQueries({ queryKey: ["exception"] }),
+      qc.invalidateQueries({ queryKey: ["audit"] }),
+    ]);
 }
 
 export function useDecision(proposalId: string) {
   const inv = useInvalidateAll();
-  return useMutation({ mutationFn: (body: DecisionRequest) => api.submitDecision(proposalId, body), onSuccess: inv });
+  return useMutation({
+    mutationFn: (body: DecisionRequest) => api.submitDecision(proposalId, body),
+    onSuccess: inv,
+  });
 }
 
 export function useRegenerate(id: string) {

@@ -13,11 +13,15 @@ import type {
 } from "./types";
 import { audits, computeHours, exceptions, proposals } from "./mock-data";
 
-export const API_BASE_URL = (import.meta.env["VITE_API_BASE_URL"] as string | undefined) ?? "http://localhost:8000/api/v1";
+export const API_BASE_URL =
+  (import.meta.env["VITE_API_BASE_URL"] as string | undefined) ?? "http://localhost:8000/api/v1";
 export const USE_MOCK = (import.meta.env["VITE_USE_MOCK_API"] as string | undefined) !== "false";
 
 export class ApiError extends Error {
-  constructor(message: string, public status: number) {
+  constructor(
+    message: string,
+    public status: number,
+  ) {
     super(message);
   }
 }
@@ -41,13 +45,22 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 const delay = (ms = 450) => new Promise((r) => setTimeout(r, ms + Math.random() * 250));
-const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
+const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v));
 const traceId = () => `tr-${Math.random().toString(16).slice(2, 8)}`;
 
-function addAudit(exceptionId: string, e: Omit<AuditEvent, "id" | "exceptionId" | "timestamp" | "traceId">) {
+function addAudit(
+  exceptionId: string,
+  e: Omit<AuditEvent, "id" | "exceptionId" | "timestamp" | "traceId">,
+) {
   const list = (audits[exceptionId] ??= []);
   const t = traceId();
-  list.push({ ...e, id: `${exceptionId}-${list.length}`, exceptionId, timestamp: new Date().toISOString(), traceId: t });
+  list.push({
+    ...e,
+    id: `${exceptionId}-${list.length}`,
+    exceptionId,
+    timestamp: new Date().toISOString(),
+    traceId: t,
+  });
   return t;
 }
 
@@ -55,8 +68,12 @@ function addAudit(exceptionId: string, e: Omit<AuditEvent, "id" | "exceptionId" 
 export function validateEdited(tc: Timecard) {
   const errors: string[] = [];
   const re = /^([01]\d|2[0-3]):[0-5]\d$/;
-  for (const k of ["checkIn", "checkOut"] as const) if (!tc[k] || !re.test(tc[k]!)) errors.push(`${k === "checkIn" ? "Check-in" : "Check-out"} must be a valid HH:MM time.`);
-  for (const k of ["mealStart", "mealEnd"] as const) if (tc[k] && !re.test(tc[k]!)) errors.push(`Meal ${k === "mealStart" ? "start" : "end"} must be HH:MM.`);
+  for (const k of ["checkIn", "checkOut"] as const)
+    if (!tc[k] || !re.test(tc[k]!))
+      errors.push(`${k === "checkIn" ? "Check-in" : "Check-out"} must be a valid HH:MM time.`);
+  for (const k of ["mealStart", "mealEnd"] as const)
+    if (tc[k] && !re.test(tc[k]!))
+      errors.push(`Meal ${k === "mealStart" ? "start" : "end"} must be HH:MM.`);
   const h = computeHours(tc);
   if (h !== null && (h <= 0 || h > 16)) errors.push("Total worked hours must be between 0 and 16.");
   return { errors, hours: h };
@@ -74,7 +91,10 @@ export const api = {
     return clone(
       exceptions.filter(
         (e) =>
-          (!s || e.employee.name.toLowerCase().includes(s) || e.employee.id.toLowerCase().includes(s) || e.id.toLowerCase().includes(s)) &&
+          (!s ||
+            e.employee.name.toLowerCase().includes(s) ||
+            e.employee.id.toLowerCase().includes(s) ||
+            e.id.toLowerCase().includes(s)) &&
           (!filters.type || filters.type === "all" || e.type === filters.type) &&
           (!filters.status || filters.status === "all" || e.status === filters.status) &&
           (!filters.severity || filters.severity === "all" || e.severity === filters.severity),
@@ -96,44 +116,105 @@ export const api = {
     await delay(900);
     const e = exceptions.find((x) => x.id === id);
     if (!e) throw new ApiError("Not found", 404);
-    addAudit(id, { action: "Retry attempted", user: "Rebecca Thorne", status: "warning", detail: "Manager requested proposal regeneration.", flags: ["Retried"] });
+    addAudit(id, {
+      action: "Retry attempted",
+      user: "Rebecca Thorne",
+      status: "warning",
+      detail: "Manager requested proposal regeneration.",
+      flags: ["Retried"],
+    });
     if (!e.proposalId) {
-      addAudit(id, { action: "Fallback triggered", user: "SmartAttend Agent", status: "warning", detail: "Still insufficient evidence; no proposal produced.", flags: ["Fallback"] });
+      addAudit(id, {
+        action: "Fallback triggered",
+        user: "SmartAttend Agent",
+        status: "warning",
+        detail: "Still insufficient evidence; no proposal produced.",
+        flags: ["Fallback"],
+      });
       return null;
     }
     return clone(proposals[e.proposalId] ?? null);
   },
 
   async escalate(id: string, note: string): Promise<DecisionResponse> {
-    if (!USE_MOCK) return http(`/exceptions/${id}/escalate`, { method: "POST", body: JSON.stringify({ note }) });
+    if (!USE_MOCK)
+      return http(`/exceptions/${id}/escalate`, { method: "POST", body: JSON.stringify({ note }) });
     await delay();
     const e = exceptions.find((x) => x.id === id);
     if (!e) throw new ApiError("Not found", 404);
     e.status = "Escalated";
-    const t = addAudit(id, { action: "Escalated", user: "Rebecca Thorne", status: "failure", detail: note || "Escalated to HR Operations.", flags: ["Escalated"] });
-    return { exceptionId: id, newStatus: "Escalated", message: "Escalated to HR Operations.", traceId: t };
+    const t = addAudit(id, {
+      action: "Escalated",
+      user: "Rebecca Thorne",
+      status: "failure",
+      detail: note || "Escalated to HR Operations.",
+      flags: ["Escalated"],
+    });
+    return {
+      exceptionId: id,
+      newStatus: "Escalated",
+      message: "Escalated to HR Operations.",
+      traceId: t,
+    };
   },
 
   async submitDecision(proposalId: string, body: DecisionRequest): Promise<DecisionResponse> {
-    if (!USE_MOCK) return http(`/proposals/${proposalId}/decision`, { method: "POST", body: JSON.stringify(body) });
+    if (!USE_MOCK)
+      return http(`/proposals/${proposalId}/decision`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
     await delay(800);
     const p = proposals[proposalId];
     if (!p) throw new ApiError("Proposal not found", 404);
     const e = exceptions.find((x) => x.id === p.exceptionId)!;
-    if (["Approved", "Rejected"].includes(e.status)) throw new ApiError(`Exception already ${e.status.toLowerCase()}.`, 409);
+    if (["Approved", "Rejected"].includes(e.status))
+      throw new ApiError(`Exception already ${e.status.toLowerCase()}.`, 409);
 
     if (body.decision === "reject") {
       if (!body.reason?.trim()) throw new ApiError("A rejection reason is required.", 422);
       e.status = "Rejected";
-      const t = addAudit(e.id, { action: "Manager rejected", user: "Rebecca Thorne", status: "failure", detail: body.reason, flags: [] });
-      return { exceptionId: e.id, newStatus: "Rejected", message: "Rejection recorded. Timecard unchanged.", traceId: t };
+      const t = addAudit(e.id, {
+        action: "Manager rejected",
+        user: "Rebecca Thorne",
+        status: "failure",
+        detail: body.reason,
+        flags: [],
+      });
+      return {
+        exceptionId: e.id,
+        newStatus: "Rejected",
+        message: "Rejection recorded. Timecard unchanged.",
+        traceId: t,
+      };
     }
     if (body.decision === "approve") {
-      if (p.blocked) throw new ApiError("Proposal is blocked by failed validation and cannot be approved as-is.", 422);
+      if (p.blocked)
+        throw new ApiError(
+          "Proposal is blocked by failed validation and cannot be approved as-is.",
+          422,
+        );
       e.status = "Approved";
-      addAudit(e.id, { action: "Manager approved", user: "Rebecca Thorne", status: "success", detail: "Approved AI proposal.", flags: [] });
-      const t = addAudit(e.id, { action: "Timecard updated", user: "Timekeeping Backend (mock)", status: "success", detail: "Simulated: backend would apply the correction.", flags: [] });
-      return { exceptionId: e.id, newStatus: "Approved", message: "Approval accepted by backend (mock).", traceId: t };
+      addAudit(e.id, {
+        action: "Manager approved",
+        user: "Rebecca Thorne",
+        status: "success",
+        detail: "Approved AI proposal.",
+        flags: [],
+      });
+      const t = addAudit(e.id, {
+        action: "Timecard updated",
+        user: "Timekeeping Backend (mock)",
+        status: "success",
+        detail: "Simulated: backend would apply the correction.",
+        flags: [],
+      });
+      return {
+        exceptionId: e.id,
+        newStatus: "Approved",
+        message: "Approval accepted by backend (mock).",
+        traceId: t,
+      };
     }
     // edit
     const tc = body.editedTimecard!;
@@ -143,10 +224,33 @@ export const api = {
     p.blocked = false;
     p.validators = p.validators.map((v) => ({ name: v.name, passed: true }));
     e.status = "Approved";
-    addAudit(e.id, { action: "Manager edited", user: "Rebecca Thorne", status: "info", detail: "Edited proposal submitted for validation.", flags: [] });
-    addAudit(e.id, { action: "Validation completed", user: "Validator Suite", status: "success", detail: "Edited proposal passed all checks.", flags: [] });
-    const t = addAudit(e.id, { action: "Timecard updated", user: "Timekeeping Backend (mock)", status: "success", detail: "Simulated: backend would apply the edited correction.", flags: [] });
-    return { exceptionId: e.id, newStatus: "Approved", message: "Edited proposal validated and approved (mock).", traceId: t };
+    addAudit(e.id, {
+      action: "Manager edited",
+      user: "Rebecca Thorne",
+      status: "info",
+      detail: "Edited proposal submitted for validation.",
+      flags: [],
+    });
+    addAudit(e.id, {
+      action: "Validation completed",
+      user: "Validator Suite",
+      status: "success",
+      detail: "Edited proposal passed all checks.",
+      flags: [],
+    });
+    const t = addAudit(e.id, {
+      action: "Timecard updated",
+      user: "Timekeeping Backend (mock)",
+      status: "success",
+      detail: "Simulated: backend would apply the edited correction.",
+      flags: [],
+    });
+    return {
+      exceptionId: e.id,
+      newStatus: "Approved",
+      message: "Edited proposal validated and approved (mock).",
+      traceId: t,
+    };
   },
 
   async getAudit(id: string): Promise<AuditEvent[]> {
@@ -158,6 +262,8 @@ export const api = {
   async getAllAudit(): Promise<AuditEvent[]> {
     if (!USE_MOCK) return http(`/audit`);
     await delay();
-    return clone(Object.values(audits).flat()).sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+    return clone(Object.values(audits).flat()).sort((a, b) =>
+      b.timestamp.localeCompare(a.timestamp),
+    );
   },
 };
