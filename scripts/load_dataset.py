@@ -16,7 +16,9 @@ from app.services.dataset_service import load_dataset_from_file
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Load attendance dataset into SQLite database.")
+    parser = argparse.ArgumentParser(
+        description="Load attendance dataset into SQLite database."
+    )
     parser.add_argument(
         "--file",
         type=str,
@@ -44,14 +46,20 @@ def main() -> None:
     try:
         result = load_dataset_from_file(db, file_path)
         print("Dataset ingestion complete:")
-        print(f"  - Employees loaded: {result.employees_loaded}")
-        print(f"  - Schedules loaded: {result.schedules_loaded}")
-        print(f"  - Punches loaded:   {result.punches_loaded}")
-        print(f"  - Exceptions loaded:{result.exceptions_loaded}")
-        print(f"  - Records skipped:  {result.skipped_count}")
+        print(f"  Newly inserted records ({result.total_inserted}):")
+        print(f"    - Employees:  {result.employees_loaded}")
+        print(f"    - Schedules:  {result.schedules_loaded}")
+        print(f"    - Punches:    {result.punches_loaded}")
+        print(f"    - Exceptions: {result.exceptions_loaded}")
+        print(f"  Existing records updated ({result.total_updated}):")
+        print(f"    - Employees:  {result.employees_updated}")
+        print(f"    - Schedules:  {result.schedules_updated}")
+        print(f"    - Punches:    {result.punches_updated}")
+        print(f"    - Exceptions: {result.exceptions_updated}")
+        print(f"  Records genuinely skipped (identical): {result.skipped_count}")
 
         if result.errors:
-            print("\nWarnings / Errors encountered:")
+            print(f"\nValidation errors ({len(result.errors)}):")
             for err in result.errors:
                 print(f"  [!] {err}")
             sys.exit(1)

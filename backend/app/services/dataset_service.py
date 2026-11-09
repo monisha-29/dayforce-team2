@@ -26,19 +26,44 @@ class DatasetLoadResult(BaseModel):
     schedules_loaded: int = Field(default=0, description="New schedules inserted")
     punches_loaded: int = Field(default=0, description="New punches inserted")
     exceptions_loaded: int = Field(default=0, description="New exceptions inserted")
-    skipped_count: int = Field(
-        default=0, description="Records skipped because identical or existing"
-    )
+
+    employees_updated: int = Field(default=0, description="Existing employees updated")
+    schedules_updated: int = Field(default=0, description="Existing schedules updated")
+    punches_updated: int = Field(default=0, description="Existing punches updated")
+    exceptions_updated: int = Field(default=0, description="Existing exceptions updated")
+
+    skipped_count: int = Field(default=0, description="Records genuinely skipped because identical")
     errors: list[str] = Field(default_factory=list, description="Validation or relational errors")
 
     @property
-    def total_loaded(self) -> int:
+    def total_inserted(self) -> int:
         return (
             self.employees_loaded
             + self.schedules_loaded
             + self.punches_loaded
             + self.exceptions_loaded
         )
+
+    @property
+    def total_updated(self) -> int:
+        return (
+            self.employees_updated
+            + self.schedules_updated
+            + self.punches_updated
+            + self.exceptions_updated
+        )
+
+    @property
+    def total_skipped(self) -> int:
+        return self.skipped_count
+
+    @property
+    def total_errors(self) -> int:
+        return len(self.errors)
+
+    @property
+    def total_loaded(self) -> int:
+        return self.total_inserted + self.total_updated
 
 
 def _parse_datetime(val: Any) -> datetime:
@@ -91,13 +116,29 @@ def load_dataset_from_dict(session: Session, data: dict[str, Any]) -> DatasetLoa
 
         existing_emp = session.get(EmployeeModel, emp_id)
         if existing_emp is not None:
-            # Update attributes if needed
-            existing_emp.name = str(raw_emp.get("name", existing_emp.name))
-            existing_emp.department = str(raw_emp.get("department", existing_emp.department))
-            existing_emp.shift = str(raw_emp.get("shift", existing_emp.shift))
-            existing_emp.shift_start = str(raw_emp.get("shift_start", existing_emp.shift_start))
-            existing_emp.shift_end = str(raw_emp.get("shift_end", existing_emp.shift_end))
-            result.skipped_count += 1
+            new_name = str(raw_emp.get("name", existing_emp.name))
+            new_dept = str(raw_emp.get("department", existing_emp.department))
+            new_shift = str(raw_emp.get("shift", existing_emp.shift))
+            new_start = str(raw_emp.get("shift_start", existing_emp.shift_start))
+            new_end = str(raw_emp.get("shift_end", existing_emp.shift_end))
+
+            is_modified = (
+                existing_emp.name != new_name
+                or existing_emp.department != new_dept
+                or existing_emp.shift != new_shift
+                or existing_emp.shift_start != new_start
+                or existing_emp.shift_end != new_end
+            )
+
+            if is_modified:
+                existing_emp.name = new_name
+                existing_emp.department = new_dept
+                existing_emp.shift = new_shift
+                existing_emp.shift_start = new_start
+                existing_emp.shift_end = new_end
+                result.employees_updated += 1
+            else:
+                result.skipped_count += 1
         else:
             new_emp = EmployeeModel(
                 id=emp_id,
@@ -144,17 +185,31 @@ def load_dataset_from_dict(session: Session, data: dict[str, Any]) -> DatasetLoa
 
         existing_sched = session.get(ScheduleModel, sched_id)
         if existing_sched is not None:
-            existing_sched.employee_id = emp_id
-            existing_sched.date = str(raw_sched.get("date", existing_sched.date))
-            existing_sched.start_time = start_dt
-            existing_sched.end_time = end_dt
-            existing_sched.department_id = raw_sched.get(
-                "department_id", existing_sched.department_id
-            )
-            existing_sched.scheduled_break_minutes = int(
+            new_date = str(raw_sched.get("date", existing_sched.date))
+            new_dept_id = raw_sched.get("department_id", existing_sched.department_id)
+            new_break = int(
                 raw_sched.get("scheduled_break_minutes", existing_sched.scheduled_break_minutes)
             )
-            result.skipped_count += 1
+
+            is_modified = (
+                existing_sched.employee_id != emp_id
+                or existing_sched.date != new_date
+                or existing_sched.start_time != start_dt
+                or existing_sched.end_time != end_dt
+                or existing_sched.department_id != new_dept_id
+                or existing_sched.scheduled_break_minutes != new_break
+            )
+
+            if is_modified:
+                existing_sched.employee_id = emp_id
+                existing_sched.date = new_date
+                existing_sched.start_time = start_dt
+                existing_sched.end_time = end_dt
+                existing_sched.department_id = new_dept_id
+                existing_sched.scheduled_break_minutes = new_break
+                result.schedules_updated += 1
+            else:
+                result.skipped_count += 1
         else:
             new_sched = ScheduleModel(
                 id=sched_id,
@@ -197,12 +252,27 @@ def load_dataset_from_dict(session: Session, data: dict[str, Any]) -> DatasetLoa
 
         existing_punch = session.get(PunchModel, punch_id)
         if existing_punch is not None:
-            existing_punch.employee_id = emp_id
-            existing_punch.timestamp = punch_dt
-            existing_punch.punch_type = str(raw_punch.get("punch_type", existing_punch.punch_type))
-            existing_punch.source = str(raw_punch.get("source", existing_punch.source))
-            existing_punch.notes = raw_punch.get("notes", existing_punch.notes)
-            result.skipped_count += 1
+            new_type = str(raw_punch.get("punch_type", existing_punch.punch_type))
+            new_source = str(raw_punch.get("source", existing_punch.source))
+            new_notes = raw_punch.get("notes", existing_punch.notes)
+
+            is_modified = (
+                existing_punch.employee_id != emp_id
+                or existing_punch.timestamp != punch_dt
+                or existing_punch.punch_type != new_type
+                or existing_punch.source != new_source
+                or existing_punch.notes != new_notes
+            )
+
+            if is_modified:
+                existing_punch.employee_id = emp_id
+                existing_punch.timestamp = punch_dt
+                existing_punch.punch_type = new_type
+                existing_punch.source = new_source
+                existing_punch.notes = new_notes
+                result.punches_updated += 1
+            else:
+                result.skipped_count += 1
         else:
             new_punch = PunchModel(
                 id=punch_id,
@@ -236,44 +306,67 @@ def load_dataset_from_dict(session: Session, data: dict[str, Any]) -> DatasetLoa
             )
             continue
 
-        try:
-            detected_at = (
-                _parse_datetime(raw_exc.get("detected_at"))
-                if raw_exc.get("detected_at")
-                else datetime.now(UTC).replace(tzinfo=None)
-            )
-        except (ValueError, TypeError) as err:
-            result.errors.append(f"exceptions[{idx}] invalid detected_at: {err}")
-            continue
+        raw_detected_at = raw_exc.get("detected_at")
+        if raw_detected_at:
+            try:
+                detected_at = _parse_datetime(raw_detected_at)
+            except (ValueError, TypeError) as err:
+                result.errors.append(f"exceptions[{idx}] invalid detected_at: {err}")
+                continue
+        else:
+            detected_at = None
 
         existing_exc = session.get(ExceptionModel, exc_id)
         if existing_exc is not None:
-            existing_exc.employee_id = emp_id
-            existing_exc.type = str(raw_exc.get("type", existing_exc.type))
-            existing_exc.date = str(raw_exc.get("date", existing_exc.date))
-            existing_exc.severity = str(raw_exc.get("severity", existing_exc.severity))
-            existing_exc.status = str(raw_exc.get("status", existing_exc.status))
-            existing_exc.description = str(raw_exc.get("description", existing_exc.description))
-            existing_exc.original_attendance = raw_exc.get(
-                "original_attendance", existing_exc.original_attendance
+            new_type = str(raw_exc.get("type", existing_exc.type))
+            new_date = str(raw_exc.get("date", existing_exc.date))
+            new_severity = str(raw_exc.get("severity", existing_exc.severity))
+            new_status = str(raw_exc.get("status", existing_exc.status))
+            new_desc = str(raw_exc.get("description", existing_exc.description))
+            new_orig_att = raw_exc.get("original_attendance", existing_exc.original_attendance)
+            new_policy_ref = str(raw_exc.get("policy_reference", existing_exc.policy_reference))
+            new_detected_at = detected_at if detected_at is not None else existing_exc.detected_at
+
+            is_modified = (
+                existing_exc.employee_id != emp_id
+                or existing_exc.type != new_type
+                or existing_exc.date != new_date
+                or existing_exc.severity != new_severity
+                or existing_exc.status != new_status
+                or existing_exc.description != new_desc
+                or existing_exc.original_attendance != new_orig_att
+                or existing_exc.policy_reference != new_policy_ref
+                or existing_exc.detected_at != new_detected_at
             )
-            existing_exc.policy_reference = str(
-                raw_exc.get("policy_reference", existing_exc.policy_reference)
-            )
-            existing_exc.detected_at = detected_at
-            result.skipped_count += 1
+
+            if is_modified:
+                existing_exc.employee_id = emp_id
+                existing_exc.type = new_type
+                existing_exc.date = new_date
+                existing_exc.severity = new_severity
+                existing_exc.status = new_status
+                existing_exc.description = new_desc
+                existing_exc.original_attendance = new_orig_att
+                existing_exc.policy_reference = new_policy_ref
+                existing_exc.detected_at = new_detected_at
+                result.exceptions_updated += 1
+            else:
+                result.skipped_count += 1
         else:
+            target_detected_at = (
+                detected_at if detected_at is not None else datetime.now(UTC).replace(tzinfo=None)
+            )
             new_exc = ExceptionModel(
                 id=exc_id,
                 employee_id=emp_id,
                 type=str(raw_exc.get("type", "missed_punch")),
-                date=str(raw_exc.get("date", detected_at.strftime("%Y-%m-%d"))),
+                date=str(raw_exc.get("date", target_detected_at.strftime("%Y-%m-%d"))),
                 severity=str(raw_exc.get("severity", "medium")),
                 status=str(raw_exc.get("status", "pending_review")),
                 description=str(raw_exc.get("description", "")),
                 original_attendance=raw_exc.get("original_attendance", {}),
                 policy_reference=str(raw_exc.get("policy_reference", "")),
-                detected_at=detected_at,
+                detected_at=target_detected_at,
                 proposal_id=raw_exc.get("proposal_id"),
             )
             session.add(new_exc)
