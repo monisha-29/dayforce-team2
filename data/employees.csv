@@ -1,0 +1,26 @@
+id,name,department,shift,shift_start,shift_end
+EMP0002,Synthetic Employee 0002,Operations,Day,09:00,17:00
+EMP0003,Synthetic Employee 0003,Operations,Day,09:00,17:00
+EMP0004,Synthetic Employee 0004,Operations,Day,09:00,17:00
+EMP0005,Synthetic Employee 0005,Operations,Day,09:00,17:00
+EMP0007,Synthetic Employee 0007,Operations,Day,09:00,17:00
+EMP0008,Synthetic Employee 0008,Operations,Day,09:00,17:00
+EMP0009,Synthetic Employee 0009,Operations,Day,09:00,17:00
+EMP0010,Synthetic Employee 0010,Operations,Day,09:00,17:00
+EMP0012,Synthetic Employee 0012,Operations,Day,09:00,17:00
+EMP0013,Synthetic Employee 0013,Operations,Day,09:00,17:00
+EMP0014,Synthetic Employee 0014,Operations,Day,09:00,17:00
+EMP0015,Synthetic Employee 0015,Operations,Day,09:00,17:00
+EMP0017,Synthetic Employee 0017,Operations,Day,09:00,17:00
+EMP0018,Synthetic Employee 0018,Operations,Day,09:00,17:00
+EMP0019,Synthetic Employee 0019,Operations,Day,09:00,17:00
+EMP0020,Synthetic Employee 0020,Operations,Day,09:00,17:00
+EMP0022,Synthetic Employee 0022,Operations,Day,09:00,17:00
+EMP0023,Synthetic Employee 0023,Operations,Day,09:00,17:00
+EMP0024,Synthetic Employee 0024,Operations,Day,09:00,17:00
+EMP0025,Synthetic Employee 0025,Operations,Day,09:00,17:00
+EMP0027,Synthetic Employee 0027,Operations,Day,09:00,17:00
+EMP0028,Synthetic Employee 0028,Operations,Day,09:00,17:00
+EMP0029,Synthetic Employee 0029,Operations,Day,09:00,17:00
+EMP0030,Synthetic Employee 0030,Operations,Day,09:00,17:00
+EMP0032,Synthetic Employee 0032,Operations,Day,09:00,17:00

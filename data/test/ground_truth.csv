@@ -1,0 +1,8 @@
+scenario_id,employee_id,date,exception_type,severity,policy_reference,expected,description
+SCN0001,EMP0001,2026-11-02,none,none,,no_exception,Scheduled 8-hour shift with a 30-minute break
+SCN0006,EMP0006,2026-11-07,none,none,,no_exception,Scheduled 8-hour shift with a 30-minute break
+SCN0011,EMP0011,2026-11-16,missed_punch,high,PUNCH-01,exception,Missing clock-out
+SCN0016,EMP0016,2026-11-21,overtime,medium,OT-01,exception,8.02 hours after two-decimal rounding
+SCN0021,EMP0021,2026-11-26,schedule_conflict,medium,SCHED-02,exception,Punches without assigned schedule
+SCN0026,EMP0026,2026-12-05,none,none,,no_exception,Two completed work intervals on one workday
+SCN0031,EMP0031,2027-01-04,none,none,,no_exception,Weekly calculator fixture; cumulative regular hours target 40.00. This single-day row is a fixture marker; build the full 5/6-day week for execution.

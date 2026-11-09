@@ -1,32 +1,24 @@
-# Frontend (Person 1)
+# Pixel Perfect Replay
 
-Manager UI: exception queue, review screen (diff, clauses, validator badges, Approve/Edit/Reject), audit view.
+Implement exactly the screenshot and nothing else
 
-## Phase 0 setup
+This project was built with [Lovable](https://lovable.dev).
 
-```bash
-# from repo root
-npm create vite@latest frontend -- --template react-ts   # choose "Ignore files and continue" if prompted
-cd frontend
-npm install
-npm install -D tailwindcss @tailwindcss/vite vitest @playwright/test openapi-typescript
-npx shadcn@latest init
+## Build with Lovable
+
+Continue developing this project in the [Lovable editor](https://lovable.dev/projects/067a637a-5bf9-4142-ad9c-540ee97288de).
+
+- **Ship faster**: describe what you want to build and Lovable handles the code.
+- **Stay in sync**: every change made in Lovable is committed straight to this repository.
+- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
+
+## Development
+
+Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+
+```sh
+git clone <this-repository-url>
+cd <repository-name>
+npm i
+npm run dev
 ```
-
-## API client and mock (needs `backend/openapi.json` from Person 2, due H3)
-
-```bash
-npx openapi-typescript ../backend/openapi.json -o src/api/schema.d.ts
-npx @stoplight/prism-cli mock ../backend/openapi.json -p 4010   # fake API
-```
-
-Point the base URL at `http://localhost:4010` (mock) until the real API is ready (~H10), then `http://localhost:8000`.
-
-## Phase checklist
-
-- [ ] P0 app scaffold, client generation, Prism mock
-- [ ] P1 queue page with filters (type, status)
-- [ ] P2 review screen (diff, clauses, validator badges, actions)
-- [ ] P3 audit timeline, retried/fallback/escalated badges, escalated tab
-- [ ] P4 Vitest component tests, Playwright end-to-end test
-- [ ] P5 slide 2, demo recording
