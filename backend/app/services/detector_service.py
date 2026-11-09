@@ -23,15 +23,16 @@ from app.models.schedule import ScheduleModel
 from app.schemas.common import Punch as SchemaPunch
 from app.schemas.common import Schedule as SchemaSchedule
 from app.services.audit_service import generate_trace_id, log_audit_event
+from app.services.timecard import build_timecard
 
 # Dynamic import boundary for Person 3's rules module.
 # Person 3's code currently resides on branch `origin/feature/rules-validation`.
 # When merged, these imports resolve directly without code changes.
 try:
-    from app.rules.detectors import (  # type: ignore[import-not-found]
+    from app.rules.detectors import (
         detect_all_exceptions as person3_detect_all_exceptions,
     )
-    from app.rules.models.exception import (  # type: ignore[import-not-found]
+    from app.rules.models.exception import (
         Punch as RulePunch,
     )
     from app.rules.models.exception import (
@@ -101,7 +102,7 @@ def to_detector_punch(punch: Any) -> Any:
         id=getattr(punch, "id", None),
         employee_id=str(punch.employee_id),
         timestamp=punch.timestamp,
-        punch_type=str(getattr(punch.punch_type, "value", punch.punch_type)),
+        punch_type=str(getattr(punch.punch_type, "value", punch.punch_type)),  # type: ignore[arg-type]  # normalised by the model validator
         source=str(getattr(punch, "source", "terminal")),
         notes=getattr(punch, "notes", None),
     )
@@ -181,9 +182,7 @@ def convert_detector_exception_to_model(detector_exc: Any) -> ExceptionModel:
 
     # 4. Extract description and policy reference
     description = str(
-        detector_exc.get("description", "")
-        if is_dict
-        else getattr(detector_exc, "description", "")
+        detector_exc.get("description", "") if is_dict else getattr(detector_exc, "description", "")
     )
     policy_reference = str(
         detector_exc.get("policy_reference", "")
@@ -208,8 +207,7 @@ def convert_detector_exception_to_model(detector_exc: Any) -> ExceptionModel:
     detected_at = (
         (detector_exc.get("created_at") or detector_exc.get("detected_at"))
         if is_dict
-        else getattr(detector_exc, "created_at", None)
-        or getattr(detector_exc, "detected_at", None)
+        else getattr(detector_exc, "created_at", None) or getattr(detector_exc, "detected_at", None)
     ) or datetime.now(UTC)
 
     return ExceptionModel(
@@ -250,6 +248,9 @@ def run_detection_pipeline(
 
     # 2. Convert to detector Pydantic models
     detector_punches = [to_detector_punch(p) for p in input_punches]
+    punches_by_employee: dict[str, list[Any]] = {}
+    for dp in detector_punches:
+        punches_by_employee.setdefault(dp.employee_id, []).append(dp)
     detector_schedules = [to_detector_schedule(s) for s in input_schedules]
 
     # 3. Resolve detector implementation
@@ -270,6 +271,12 @@ def run_detection_pipeline(
 
     for item in raw_exceptions:
         model = convert_detector_exception_to_model(item)
+        # Store the original timecard (what the API, UI and prompt read) and keep the
+        # detector's own details alongside it.
+        model.original_attendance = {
+            **build_timecard(punches_by_employee.get(model.employee_id, []), model.date),
+            "detector": model.original_attendance,
+        }
 
         # Check in-batch deduplication
         if model.id in seen_in_batch:

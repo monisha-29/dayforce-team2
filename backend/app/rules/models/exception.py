@@ -17,12 +17,15 @@ class PunchType(str, Enum):
 
 
 class ExceptionType(str, Enum):
-    """The four core exception types required by project specifications."""
+    """The four core exception types from the project spec, plus three extended types."""
 
     MISSED_PUNCH = "missed_punch"
     OVERTIME = "overtime"
     SCHEDULE_CONFLICT = "schedule_conflict"
     MEAL_BREAK = "meal_break"
+    DUPLICATE_PUNCH = "duplicate_punch"
+    REST_PERIOD = "rest_period"
+    CONSECUTIVE_DAYS = "consecutive_days"
 
 
 class Severity(str, Enum):

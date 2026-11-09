@@ -290,7 +290,7 @@ def test_standalone_validator_detects_excessive_shift_duration_cap() -> None:
         v for v in summary.validators if v.name == ValidatorName.NEW_VIOLATION_CHECK.value
     )
     assert new_violation_check.passed is False
-    assert "16h" in new_violation_check.reason
+    assert "excessive working hours" in new_violation_check.reason.lower()
 
 
 # =============================================================================
@@ -356,7 +356,6 @@ def person3_rules_module() -> Any:
     import importlib
 
     import app.rules
-
     from app.services import detector_service, rules_adapter
     importlib.reload(detector_service)
     importlib.reload(rules_adapter)
@@ -378,7 +377,6 @@ def test_person3_validator_direct_integration(person3_rules_module: Any) -> None
         Severity,
         TimecardException,
     )
-
     from app.services.rules_adapter import validate_timecard_proposal
 
     orig_in = Punch(
@@ -483,7 +481,6 @@ def test_person3_fallback_engine_direct_integration(person3_rules_module: Any) -
 
 def test_person3_detect_all_exceptions_pipeline_integration(person3_rules_module: Any) -> None:
     """Test full database detection pipeline with Person 3's real detect_all_exceptions."""
-    from app.rules.detectors import detect_all_exceptions
     from sqlalchemy import create_engine
     from sqlalchemy.orm import Session
 
@@ -492,6 +489,7 @@ def test_person3_detect_all_exceptions_pipeline_integration(person3_rules_module
     from app.models.exception import ExceptionModel
     from app.models.punch import PunchModel
     from app.models.schedule import ScheduleModel
+    from app.rules.detectors import detect_all_exceptions
     from app.services.detector_service import run_detection_pipeline
 
     test_engine = create_engine("sqlite:///:memory:")

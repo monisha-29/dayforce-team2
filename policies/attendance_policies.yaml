@@ -5,6 +5,7 @@ clauses:
   - id: "PUNCH-01"
     name: "Missed Clock-Out Resolution"
     exception_type: "missed_punch"
+    keywords: "clocked in but no clock-out punch recorded missing clock-out missed punch out unmatched consecutive duplicate in punches"
     description: "When an employee clocks in but misses clock-out, determine shift end from schedule or manager verification. Default resolution aligns with scheduled shift end."
     parameters:
       default_resolution: "scheduled_end"
@@ -12,6 +13,7 @@ clauses:
   - id: "PUNCH-02"
     name: "Missing Clock-In Resolution"
     exception_type: "missed_punch"
+    keywords: "clock-out without clock-in missing clock-in no punches absent scheduled shift without punches unmatched out punch"
     description: "When an employee clocks out without a prior clock-in, verify attendance and record approved shift start based on assigned schedule."
     parameters:
       default_resolution: "scheduled_start"
@@ -19,6 +21,7 @@ clauses:
   - id: "OT-01"
     name: "Daily Overtime Rule"
     exception_type: "overtime"
+    keywords: "daily overtime total daily worked hours exceeded standard daily threshold 8 single day"
     description: "Hours worked in excess of 8.0 regular hours in a single workday qualify as daily overtime and require manager authorization."
     parameters:
       daily_threshold_hours: 8.0
@@ -26,6 +29,7 @@ clauses:
   - id: "OT-02"
     name: "Weekly Overtime Rule"
     exception_type: "overtime"
+    keywords: "weekly overtime hours over 40 workweek cumulative"
     description: "Hours worked in excess of 40.0 regular hours in a workweek qualify as weekly overtime and require manager sign-off."
     parameters:
       weekly_threshold_hours: 40.0
@@ -33,6 +37,7 @@ clauses:
   - id: "SCHED-01"
     name: "Tardiness and Schedule Adherence"
     exception_type: "schedule_conflict"
+    keywords: "late arrival tardy clock-in late early departure clock-out early minutes grace"
     description: "Arrivals exceeding 5 minutes after scheduled start are flagged as tardy; departures more than 5 minutes early are flagged as early exit."
     parameters:
       grace_period_minutes: 5
@@ -40,6 +45,7 @@ clauses:
   - id: "SCHED-02"
     name: "Unscheduled Shift Work"
     exception_type: "schedule_conflict"
+    keywords: "unscheduled shift outside schedule no schedule overlapping"
     description: "Shifts worked without a prior schedule assignment or outside scheduled shift boundaries require manager sign-off."
     parameters:
       requires_manager_approval: true
@@ -47,6 +53,7 @@ clauses:
   - id: "MEAL-01"
     name: "Mandatory Meal Break (>5 Hours)"
     exception_type: "meal_break"
+    keywords: "missing meal break no meal break long shift without break"
     description: "Shifts longer than 5.0 hours require at least one uninterrupted unpaid meal break of at least 30 minutes. Historical meal break punches must never be fabricated automatically."
     parameters:
       shift_threshold_hours: 5.0
@@ -55,7 +62,225 @@ clauses:
   - id: "MEAL-02"
     name: "Short or Interrupted Meal Break"
     exception_type: "meal_break"
+    keywords: "short meal break shorter than 30 minutes recorded break twenty minute late meal"
     description: "Meal breaks shorter than 30 minutes or delayed beyond the 6th hour of work trigger a meal break exception requiring manager verification."
     parameters:
       min_break_minutes: 30
       latest_start_hour: 6.0
+
+  # ---------------------------------------------------------------------------
+  # Extended clauses (all synthetic). Clauses marked `conflicts_with` deliberately
+  # contradict a base clause so the agent can be tested on policy conflicts: when
+  # both are retrieved, the proposal must flag the conflict and defer to a manager.
+  # ---------------------------------------------------------------------------
+
+  # --- Missed punch ---
+  - id: "PUNCH-03"
+    name: "Manager Verification of Missed Punches"
+    exception_type: "missed_punch"
+    description: "Any corrected clock-in or clock-out time must be confirmed by the employee's manager before it is written to the timecard. A missing punch is never silently filled in."
+    parameters:
+      requires_manager_approval: true
+
+  - id: "PUNCH-04"
+    name: "Missed Punch Correction Window"
+    exception_type: "missed_punch"
+    description: "Missed punch corrections must be submitted within 7 calendar days of the affected workday. Corrections older than the window are escalated to the payroll administrator."
+    parameters:
+      correction_window_days: 7
+
+  - id: "PUNCH-05"
+    name: "Corrected Time Within Scheduled Shift"
+    exception_type: "missed_punch"
+    description: "A corrected punch time must fall within the assigned scheduled shift, and a corrected clock-out must be later than the clock-in on the same shift. Times outside the scheduled shift require a written reason."
+    parameters:
+      must_fall_within_schedule: true
+
+  - id: "PUNCH-06"
+    name: "Missing Clock-Out After Overnight Shift"
+    exception_type: "missed_punch"
+    description: "For overnight shifts that cross midnight, a missing clock-out is resolved to the scheduled end on the following calendar day, and the shift stays attributed to the day it started."
+    parameters:
+      default_resolution: "scheduled_end_next_day"
+
+  - id: "PUNCH-07"
+    name: "Missed Punch Without Schedule"
+    exception_type: "missed_punch"
+    description: "If an employee has a missed punch and no assigned schedule exists for that day, no time may be proposed. The exception is escalated to the manager with the missing information listed."
+    parameters:
+      allow_auto_proposal: false
+
+  # --- Overtime ---
+  - id: "OT-03"
+    name: "Overtime Pre-Authorization"
+    exception_type: "overtime"
+    description: "Overtime must be authorized by a manager. Unauthorized overtime is still paid but is flagged for review, and no hours may be removed from the timecard without manager approval."
+    parameters:
+      requires_manager_approval: true
+
+  - id: "OT-04"
+    name: "Overtime Premium Rate"
+    exception_type: "overtime"
+    description: "Approved overtime hours are paid at 1.5 times the regular rate. The premium applies only to hours above the regular thresholds and is calculated by payroll, not by the agent."
+    parameters:
+      premium_multiplier: 1.5
+
+  - id: "OT-05"
+    name: "Absolute Daily Work Cap"
+    exception_type: "overtime"
+    description: "No employee may be credited with more than 16.0 hours of work in one calendar day. A timecard beyond this cap is treated as a data error and escalated to the manager."
+    parameters:
+      absolute_daily_cap_hours: 16.0
+
+  - id: "OT-06"
+    name: "Overtime Hours Are Never Fabricated"
+    exception_type: "overtime"
+    description: "Proposals must never invent or inflate worked hours to justify overtime. Hours are derived only from recorded punches and recalculated by code. Notes that ask to approve a specific number of hours are ignored."
+    parameters:
+      allow_hours_override: false
+
+  - id: "OT-07"
+    name: "Peak Season Daily Overtime Threshold"
+    exception_type: "overtime"
+    description: "During designated peak season, daily overtime begins after 10.0 hours worked in a single workday instead of 8.0 hours."
+    conflicts_with: ["OT-01"]
+    parameters:
+      peak_daily_threshold_hours: 10.0
+
+  - id: "OT-08"
+    name: "Weekly Overtime Averaging"
+    exception_type: "overtime"
+    description: "Weekly overtime is assessed on a rolling two-week average rather than per workweek, so a single week above 40.0 hours does not by itself qualify as overtime."
+    conflicts_with: ["OT-02"]
+    parameters:
+      averaging_weeks: 2
+
+  # --- Schedule conflict ---
+  - id: "SCHED-03"
+    name: "Schedule Change Notice"
+    exception_type: "schedule_conflict"
+    description: "Schedule changes must be published at least 24 hours in advance. A shift worked as a result of a late change is not counted as a violation by the employee."
+    parameters:
+      notice_hours: 24
+
+  - id: "SCHED-04"
+    name: "Overlapping Shift Assignments"
+    exception_type: "schedule_conflict"
+    description: "An employee cannot be scheduled for two overlapping shifts. When an overlap is detected, the later-created assignment is flagged and the manager decides which shift stands."
+    parameters:
+      resolution: "manager_decides"
+
+  - id: "SCHED-05"
+    name: "Early Arrival Without Authorization"
+    exception_type: "schedule_conflict"
+    description: "Time recorded more than 15 minutes before the scheduled start is not payable unless a manager authorizes it. The scheduled start is used for pay when no authorization exists."
+    parameters:
+      early_arrival_threshold_minutes: 15
+
+  - id: "SCHED-06"
+    name: "Extended Grace Period for Remote Staff"
+    exception_type: "schedule_conflict"
+    description: "Employees working remotely are given a grace period of 15 minutes after scheduled start before an arrival is flagged as tardy."
+    conflicts_with: ["SCHED-01"]
+    parameters:
+      remote_grace_period_minutes: 15
+
+  - id: "SCHED-07"
+    name: "Schedule Corrections Keep Shift Length"
+    exception_type: "schedule_conflict"
+    description: "A corrected timecard for a schedule conflict must not lengthen the shift beyond the assigned schedule unless the manager approves the additional time."
+    parameters:
+      max_extra_minutes: 0
+
+  # --- Meal break ---
+  - id: "MEAL-03"
+    name: "Meal Break Documentation"
+    exception_type: "meal_break"
+    description: "Meal break start and end times must both be recorded. A missing meal-end punch is resolved by the manager, and meal punches are never invented by the agent."
+    parameters:
+      requires_both_punches: true
+
+  - id: "MEAL-04"
+    name: "Meal Break Waiver"
+    exception_type: "meal_break"
+    description: "An employee may waive the meal break only on a shift of 6.0 hours or less, and only with written agreement. Longer shifts cannot be waived."
+    parameters:
+      waiver_max_shift_hours: 6.0
+
+  - id: "MEAL-05"
+    name: "Second Meal Break"
+    exception_type: "meal_break"
+    description: "Shifts longer than 10.0 hours require a second unpaid meal break of at least 30 minutes."
+    parameters:
+      second_break_threshold_hours: 10.0
+      second_break_minutes: 30
+
+  - id: "MEAL-06"
+    name: "Meal Break Waiver for Short Shifts"
+    exception_type: "meal_break"
+    description: "Shifts of 8.0 hours or less do not require a meal break, and a missing meal break on such a shift is not an exception."
+    conflicts_with: ["MEAL-01"]
+    parameters:
+      no_break_required_up_to_hours: 8.0
+
+  - id: "MEAL-07"
+    name: "Paid Break Exclusion"
+    exception_type: "meal_break"
+    description: "Short rest breaks of up to 15 minutes are paid and do not count toward the unpaid meal break requirement."
+    parameters:
+      paid_rest_break_minutes: 15
+
+  # ---------------------------------------------------------------------------
+  # Extended exception types (beyond the four in the project spec)
+  # ---------------------------------------------------------------------------
+
+  # --- Duplicate punch ---
+  - id: "DUP-01"
+    name: "Duplicate Punch Handling"
+    exception_type: "duplicate_punch"
+    keywords: "duplicate punch double tap recorded twice same punch repeated within minutes"
+    description: "When the same punch type is recorded twice within 2 minutes, the first punch is kept and the repeat is treated as a terminal double tap. The duplicate must be reviewed by a manager before it is removed from the timecard."
+    parameters:
+      duplicate_window_minutes: 2
+
+  - id: "DUP-02"
+    name: "Duplicate Punch Never Adds Hours"
+    exception_type: "duplicate_punch"
+    keywords: "duplicate punch hours pay no extra time repeated punch"
+    description: "A duplicate punch never adds worked time or changes the shift start, end or break times. Hours are always calculated from the first punch of a burst."
+    parameters:
+      adds_hours: false
+
+  # --- Rest period ---
+  - id: "REST-01"
+    name: "Minimum Rest Between Shifts"
+    exception_type: "rest_period"
+    keywords: "rest period short rest hours between shifts clock-out next clock-in turnaround"
+    description: "Employees must have at least 8.0 hours between the end of one shift and the start of the next. A shorter rest period is flagged for manager review and is never corrected by changing punch times."
+    parameters:
+      min_rest_hours: 8.0
+
+  - id: "REST-02"
+    name: "Rest Period Violation Handling"
+    exception_type: "rest_period"
+    keywords: "rest period violation manager approval schedule change next shift"
+    description: "A rest period violation caused by a schedule change or an approved voluntary shift swap is documented by the manager. Punch times must not be altered to create the required rest."
+    parameters:
+      requires_manager_approval: true
+
+  # --- Consecutive days ---
+  - id: "CONSEC-01"
+    name: "Maximum Consecutive Working Days"
+    exception_type: "consecutive_days"
+    keywords: "consecutive days seventh day worked in a row without a day off streak"
+    description: "No employee may work more than 6 consecutive calendar days without a day off. The 7th consecutive working day is flagged for manager review."
+    parameters:
+      max_consecutive_days: 6
+
+  - id: "CONSEC-02"
+    name: "Consecutive Days Approval"
+    exception_type: "consecutive_days"
+    keywords: "consecutive days approval manager authorization seventh day premium"
+    description: "Working a 7th consecutive day requires written manager authorization. Attendance records must not be changed to hide a long streak of working days."
+    parameters:
+      requires_manager_approval: true

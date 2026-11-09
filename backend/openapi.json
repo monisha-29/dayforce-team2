@@ -191,7 +191,7 @@
           "Exceptions"
         ],
         "summary": "Generate Proposal",
-        "description": "Trigger AI proposal generation (with retrieval, validation, retry, and fallback) for an exception.",
+        "description": "Trigger proposal generation (with policy retrieval, validation, retry, and fallback) for an exception.",
         "operationId": "generate_proposal_api_v1_exceptions__id__proposal_post",
         "parameters": [
           {
@@ -389,17 +389,149 @@
         "summary": "List All Audit Events",
         "description": "Retrieve the global chronological audit log across all exceptions and actions.",
         "operationId": "list_all_audits_api_v1_audit_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "description": "Max audit entries to retrieve",
+              "default": 200,
+              "title": "Limit"
+            },
+            "description": "Max audit entries to retrieve"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
+                  "type": "array",
                   "items": {
                     "$ref": "#/components/schemas/AuditEvent"
                   },
-                  "type": "array",
                   "title": "Response List All Audits Api V1 Audit Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/attendance/summary": {
+      "get": {
+        "tags": [
+          "Attendance"
+        ],
+        "summary": "Attendance Summary For The Dashboard",
+        "description": "Read-only. Present, late and absent counts for a day, that day's Monday-to-Sunday week, and the attendance rate for each of the last six weeks. Defaults to the busiest date.",
+        "operationId": "get_attendance_summary_api_v1_attendance_summary_get",
+        "parameters": [
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Reference day (YYYY-MM-DD); default: busiest day",
+              "title": "Date"
+            },
+            "description": "Reference day (YYYY-MM-DD); default: busiest day"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttendanceSummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/attendance": {
+      "get": {
+        "tags": [
+          "Attendance"
+        ],
+        "summary": "Attendance Records For A Day",
+        "description": "Read-only. One row per employee scheduled or working that day, with the first clock-in, last clock-out and a status worked out from the data. Defaults to the date with the most employees.",
+        "operationId": "get_attendance_api_v1_attendance_get",
+        "parameters": [
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Day to show (YYYY-MM-DD); default: busiest day",
+              "title": "Date"
+            },
+            "description": "Day to show (YYYY-MM-DD); default: busiest day"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttendanceDay"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -410,6 +542,50 @@
   },
   "components": {
     "schemas": {
+      "AttendanceDay": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "minDate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mindate"
+          },
+          "maxDate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maxdate"
+          },
+          "records": {
+            "items": {
+              "$ref": "#/components/schemas/AttendanceRecord"
+            },
+            "type": "array",
+            "title": "Records"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "records"
+        ],
+        "title": "AttendanceDay",
+        "description": "All attendance records for one date, plus the dates that have data."
+      },
       "AttendanceException": {
         "properties": {
           "id": {
@@ -475,6 +651,156 @@
         ],
         "title": "AttendanceException",
         "description": "Attendance exception representation for list and queue views."
+      },
+      "AttendanceRecord": {
+        "properties": {
+          "employeeId": {
+            "type": "string",
+            "title": "Employeeid"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "department": {
+            "type": "string",
+            "title": "Department"
+          },
+          "shift": {
+            "type": "string",
+            "title": "Shift"
+          },
+          "scheduledStart": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduledstart"
+          },
+          "scheduledEnd": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduledend"
+          },
+          "checkIn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkin"
+          },
+          "checkOut": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkout"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "Present",
+              "Late",
+              "Absent"
+            ],
+            "title": "Status"
+          },
+          "exceptionIds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Exceptionids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "employeeId",
+          "name",
+          "department",
+          "shift",
+          "status"
+        ],
+        "title": "AttendanceRecord",
+        "description": "An employee's day, worked out from their punches and schedule."
+      },
+      "AttendanceSummary": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "totalEmployees": {
+            "type": "integer",
+            "title": "Totalemployees"
+          },
+          "departments": {
+            "type": "integer",
+            "title": "Departments"
+          },
+          "scheduled": {
+            "type": "integer",
+            "title": "Scheduled"
+          },
+          "present": {
+            "type": "integer",
+            "title": "Present"
+          },
+          "late": {
+            "type": "integer",
+            "title": "Late"
+          },
+          "absent": {
+            "type": "integer",
+            "title": "Absent"
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/DayCount"
+            },
+            "type": "array",
+            "title": "Days"
+          },
+          "weeks": {
+            "items": {
+              "$ref": "#/components/schemas/WeekRate"
+            },
+            "type": "array",
+            "title": "Weeks"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "totalEmployees",
+          "departments",
+          "scheduled",
+          "present",
+          "late",
+          "absent",
+          "days",
+          "weeks"
+        ],
+        "title": "AttendanceSummary",
+        "description": "Dashboard attendance numbers: one day's counts, its week, and a weekly trend."
       },
       "AuditEvent": {
         "properties": {
@@ -545,6 +871,81 @@
         ],
         "title": "AuditEvent",
         "description": "Individual recorded audit event matching frontend timeline."
+      },
+      "ContextShift": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "start": {
+            "type": "string",
+            "title": "Start"
+          },
+          "end": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End"
+          },
+          "endDate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enddate"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "start"
+        ],
+        "title": "ContextShift",
+        "description": "Another shift of the same employee that explains a multi-day exception."
+      },
+      "DayCount": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "present": {
+            "type": "integer",
+            "title": "Present"
+          },
+          "late": {
+            "type": "integer",
+            "title": "Late"
+          },
+          "absent": {
+            "type": "integer",
+            "title": "Absent"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "label",
+          "present",
+          "late",
+          "absent"
+        ],
+        "title": "DayCount",
+        "description": "Present, late and absent employees on one date."
       },
       "DecisionRequest": {
         "properties": {
@@ -727,6 +1128,11 @@
             ],
             "title": "Detectedat"
           },
+          "detectedIssue": {
+            "type": "string",
+            "title": "Detectedissue",
+            "default": ""
+          },
           "proposal": {
             "anyOf": [
               {
@@ -736,6 +1142,41 @@
                 "type": "null"
               }
             ]
+          },
+          "punches": {
+            "items": {
+              "$ref": "#/components/schemas/PunchRecord"
+            },
+            "type": "array",
+            "title": "Punches"
+          },
+          "schedule": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScheduleWindow"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "contextShifts": {
+            "items": {
+              "$ref": "#/components/schemas/ContextShift"
+            },
+            "type": "array",
+            "title": "Contextshifts"
+          },
+          "contextSummary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contextsummary"
           }
         },
         "type": "object",
@@ -864,6 +1305,75 @@
         "title": "Proposal",
         "description": "Proposal generated for resolving a timecard exception."
       },
+      "PunchRecord": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "time": {
+            "type": "string",
+            "title": "Time"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "isDuplicate": {
+            "type": "boolean",
+            "title": "Isduplicate",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "type",
+          "date",
+          "time",
+          "source"
+        ],
+        "title": "PunchRecord",
+        "description": "One recorded punch from the shift behind an exception."
+      },
+      "ScheduleWindow": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "title": "End"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "end"
+        ],
+        "title": "ScheduleWindow",
+        "description": "Assigned shift for the day."
+      },
       "Timecard": {
         "properties": {
           "checkIn": {
@@ -949,13 +1459,6 @@
           "type": {
             "type": "string",
             "title": "Error Type"
-          },
-          "input": {
-            "title": "Input"
-          },
-          "ctx": {
-            "type": "object",
-            "title": "Context"
           }
         },
         "type": "object",
@@ -995,6 +1498,41 @@
         ],
         "title": "ValidatorResult",
         "description": "Result of an individual proposal safety check."
+      },
+      "WeekRate": {
+        "properties": {
+          "week": {
+            "type": "string",
+            "title": "Week"
+          },
+          "start": {
+            "type": "string",
+            "title": "Start"
+          },
+          "rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rate"
+          },
+          "exceptions": {
+            "type": "integer",
+            "title": "Exceptions",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "week",
+          "start"
+        ],
+        "title": "WeekRate",
+        "description": "Share of scheduled-or-working employees who worked in one week (None: no data)."
       }
     }
   }

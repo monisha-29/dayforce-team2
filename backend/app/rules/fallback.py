@@ -51,6 +51,19 @@ class FallbackEngine:
             return self._fallback_schedule_conflict(exception, punches, schedule)
         elif exc_type == ExceptionType.MEAL_BREAK:
             return self._fallback_meal_break(exception, punches, schedule)
+        elif exc_type in (
+            ExceptionType.DUPLICATE_PUNCH,
+            ExceptionType.REST_PERIOD,
+            ExceptionType.CONSECUTIVE_DAYS,
+        ):
+            return self._escalate(
+                exception=exception,
+                reason=(
+                    f"{exc_type.value.replace('_', ' ').capitalize()} cannot be fixed by changing "
+                    "punch times. No timecard change is proposed; the manager must review the "
+                    "exception and decide."
+                ),
+            )
         else:
             return self._escalate(
                 exception=exception,

@@ -47,6 +47,13 @@ INJECTION_PATTERNS = [
 ]
 
 
+def _violation_summary(violations: list[TimecardException], shown: int = 3) -> str:
+    """One-line summary naming the violations, so managers and the retry prompt see what failed."""
+    names = "; ".join(v.description for v in violations[:shown])
+    extra = f"; +{len(violations) - shown} more" if len(violations) > shown else ""
+    return f"Proposed timecard triggered {len(violations)} violation(s): {names}{extra}"
+
+
 class ProposalValidator:
     """Deterministic safety validator for LLM-generated timecard proposals."""
 
@@ -289,7 +296,13 @@ class ProposalValidator:
             "overtime" in proposal.suggested_action.lower() or "OT-01" in cited_ids
         )
 
-        if daily_calc.net_hours > daily_limit and not is_overtime_approval:
+        # A proposal that changes no punches cannot "create" hours: any overtime in the recorded
+        # timecard already exists and is reported by its own exception.
+        if (
+            daily_calc.net_hours > daily_limit
+            and not is_overtime_approval
+            and proposal.proposed_punches
+        ):
             errors.append(
                 ValidationErrorItem(
                     code="OVERTIME_LIMIT_EXCEEDED",
@@ -336,13 +349,29 @@ class ProposalValidator:
             config=self.config,
         )
 
+        # Violations the recorded timecard already had are not introduced by this proposal;
+        # each of them is reported (and resolved) as its own exception.
+        existing_ids = {
+            e.exception_id
+            for e in detect_shift_exceptions(
+                employee_id=emp_id,
+                date_str=date_str,
+                punches=list(original_punches),
+                schedule=original_schedule,
+                config=self.config,
+            )
+        }
+
         # Check if the proposed timecard creates violations that were NOT the original exception being resolved
         introduced_violations: list[TimecardException] = []
         original_exc_type = original_exception.exception_type if original_exception else None
 
         for n_exc in new_exceptions:
-            # If it's a completely different exception type, it's definitely a new violation
+            # If it's a completely different exception type, it's a new violation unless the
+            # recorded timecard already had it
             if original_exc_type is None or n_exc.exception_type != original_exc_type:
+                if n_exc.exception_id in existing_ids:
+                    continue
                 introduced_violations.append(n_exc)
             else:
                 # Same exception type:
@@ -367,7 +396,7 @@ class ProposalValidator:
                 ValidationCheckDetail(
                     check_name="no_new_violations",
                     passed=False,
-                    message=f"Proposed timecard triggered {len(introduced_violations)} violation(s).",
+                    message=_violation_summary(introduced_violations),
                     details={"violations": [v.description for v in introduced_violations]},
                 )
             )

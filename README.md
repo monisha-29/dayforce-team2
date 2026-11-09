@@ -1,103 +1,89 @@
 # Timecard Exception Agent
 
-An agent that finds timecard exceptions (missed punch, overtime, schedule conflict, meal break), proposes a **policy-grounded** fix with a local LLM, **validates** it with deterministic code, and changes a timecard **only after a manager approves**. Every step is logged for audit.
+An agent that finds timecard exceptions, proposes a **policy-grounded** fix with a local LLM, **validates** it with deterministic code, and changes a timecard **only after a manager approves**. Every step is logged for audit.
 
 > **The LLM suggests. Code decides. A human approves.**
 
-Full details: [docs/PROJECT_SPEC.md](docs/PROJECT_SPEC.md) · Plan: the PDF in this folder.
+Plan: the PDF in this folder · Spec: [docs/PROJECT_SPEC.md](docs/PROJECT_SPEC.md) · Rules: [docs/RULES_SPEC.md](docs/RULES_SPEC.md) · LLM: [docs/LLM.md](docs/LLM.md) · Evaluation: [docs/eval-report.md](docs/eval-report.md)
+
+## Exception types
+
+The four from the project plan: **missed punch**, **overtime**, **schedule conflict**, **meal break**.
+Three extensions (defined in [docs/RULES_SPEC.md](docs/RULES_SPEC.md) section 3E): **duplicate punch**, **rest period violation**, **consecutive days**.
 
 ## How it works
 
 ```
-Exception → retrieve policy clauses → LLM (strict JSON) → validator ─ pass → manager review → timecard write
-                                          ▲                  │ fail
-                                          └── retry once ◄───┤ fail again
-                                                       rule-based fallback → (still fails) escalate
+Exception → retrieve policy clauses → LLM (strict JSON) → grounding check + validator ─ pass → manager review → timecard write
+                                          ▲                          │ fail
+                                          └── retry once, with the errors ◄──┤ fail again
+                                                    AI suggestion shown but hard-blocked  +  rule-based fallback recorded
 ```
+
+- **Detect** (plain code): four core detectors plus duplicate, rest-period and consecutive-day checks.
+- **Retrieve**: clauses are filtered by exception type and ranked with BM25; the clause the detector assigned always comes first.
+- **Propose**: Qwen2.5 via Ollama, JSON schema enforced, temperature 0. The prompt is versioned in `prompts/`.
+- **Validate**: only retrieved clauses may be cited; recorded punches are never deleted; hours are recalculated by code; no new exception may be created; values must be within limits.
+- **Approve**: nothing touches a timecard until a manager approves. A blocked proposal cannot be approved.
+- **Audit**: every step is logged with the model, prompt version, raw model output, retries, fallback, decision and a trace ID.
+- **Attendance**: the Attendance Records page and the dashboard read real punches and schedules (`/api/v1/attendance`, `/api/v1/attendance/summary`). Status is worked out in code: no punches on a scheduled day is *Absent*, a first clock-in more than 5 minutes after the schedule start is *Late*, otherwise *Present*. There is no "on leave" status because the data has no leave records.
+
+## Quick start
+
+**Everything with Docker** (UI, API and Ollama; the first start downloads about 6.5 GB of models):
+
+```bash
+docker compose up --build
+```
+
+UI <http://localhost:5173> · API docs <http://localhost:8000/docs>. The API starts with a demo dataset loaded.
+To reuse the Ollama already running on your machine (no second 6.5 GB download), add the override file: `docker compose -f docker-compose.yml -f docker-compose.host-ollama.yml up --build`. Stop any local backend on port 8000 first, because the UI container calls the API there.
+*The Docker setup has not yet been verified on a clean machine.*
+
+**Locally on Windows (PowerShell):**
+
+```powershell
+python -m venv .venv ; .\.venv\Scripts\Activate.ps1
+pip install -e "backend[dev]"
+ollama pull qwen2.5:7b ; ollama pull qwen2.5:3b
+
+python scripts\load_dataset.py --file data\demo_attendance.json    # 92 exceptions, all 7 types
+python -m uvicorn app.main:app --app-dir backend --port 8000       # API
+
+cd frontend ; npm install --legacy-peer-deps ; npm run dev         # UI (second terminal)
+```
+
+Create `frontend/.env.local` containing `VITE_USE_MOCK_API=false` so the UI uses the real API instead of its built-in fake data. With it set to `true` (the default), every page shows sample data. To reload the demo data, stop the API first, delete `timecard_demo.db`, then run the load command again; this also clears saved proposals and decisions. Copy `.env.example` to `.env` to change the model or timeouts. A 7B model on CPU takes 1 to 3 minutes per proposal; set `LLM_MODEL=qwen2.5:3b` for faster demos.
 
 ## Repository layout
 
-| Folder | Contents | Owner |
-|---|---|---|
-| `frontend/` | React + TypeScript + Vite manager UI | Person 1 |
-| `backend/` | FastAPI API, DB, audit log | Person 2 |
-| `backend/app/rules/` *(to add)* | Detectors, hours calculator, validator, fallback | Person 3 |
-| `policies/`, `prompts/` | YAML policy clauses, versioned prompts | Person 4 |
-| `eval/`, `data/` | Synthetic data, labels, scoring scripts | Person 5 |
-| `docs/` | Spec, rules, evaluation report | All |
-| `scripts/` | Setup and environment checks | Person 5 |
-
-## Prerequisites
-
-| Tool | Version | Used for |
-|---|---|---|
-| Git | any | source control |
-| Python | 3.11+ | backend, rules, eval |
-| Node.js | 20+ | frontend |
-| Ollama | latest | local LLM |
-| Docker Desktop | optional | `docker-compose up` |
-
-## Setup (Phase 0)
-
-### Windows (PowerShell)
-
-```powershell
-.\scripts\setup.ps1          # creates .venv, installs backend deps, copies .env
-.\scripts\check-env.ps1      # verifies tools, API, and Ollama
-```
-
-### macOS / Linux
-
-```bash
-./scripts/setup.sh
-./scripts/check-env.sh
-```
-
-### Manual steps
-
-**1. Backend**
-```bash
-python -m venv .venv
-.venv\Scripts\activate          # macOS/Linux: source .venv/bin/activate
-pip install -e "backend[dev]"
-cp .env.example .env            # Windows: copy .env.example .env
-```
-Person 2 adds the FastAPI app (`backend/app/main.py`); after that:
-```bash
-uvicorn app.main:app --reload --app-dir backend    # http://localhost:8000/docs
-```
-
-**2. LLM (Ollama)**
-```bash
-ollama pull qwen2.5:7b
-ollama pull qwen2.5:3b
-python scripts/test-ollama.py    # must print valid JSON
-```
-
-**3. Frontend** (Person 1 — see [frontend/README.md](frontend/README.md))
-```bash
-npm create vite@latest frontend -- --template react-ts
-```
-then Tailwind, shadcn/ui, OpenAPI client generation and the Prism mock as described there.
-
-**4. Everything with Docker** (final form, Phase 4)
-```bash
-docker-compose up
-```
+| Folder | Contents |
+|---|---|
+| `frontend/` | React + TypeScript + Vite manager UI (dashboard, queue, review, attendance, audit, escalated) |
+| `backend/app/api`, `services`, `models`, `schemas` | FastAPI endpoints, services, database, audit log |
+| `backend/app/rules/` | Detectors, hours calculator, validator, fallback |
+| `backend/app/services/llm_service.py` | Prompt loading, Ollama call, grounding and change checks |
+| `policies/`, `prompts/` | Policy clauses (YAML) and versioned prompts |
+| `data/`, `eval/`, `scripts/` | Generated dataset, evaluation scripts, tooling |
+| `docs/` | Spec, rules, LLM notes, evaluation report |
 
 ## Common commands
 
 | Task | Command |
 |---|---|
-| Run API | `uvicorn app.main:app --reload --app-dir backend` |
 | Backend tests | `pytest backend` |
-| Lint / format | `ruff check backend` · `ruff format backend` |
-| Type check | `mypy backend/app` |
-| Mock API | `npx prism mock backend/openapi.json -p 4010` |
+| Dataset tests | `pytest tests` |
+| Lint / types | `ruff check backend` · `mypy --config-file backend/pyproject.toml backend/app` |
+| Frontend checks | `cd frontend` then `npm run lint` · `npx tsc --noEmit` · `npm test` |
+| Regenerate dataset | `python scripts/generate_dataset.py` (cases fall on weekdays; only consecutive-day streaks and Friday-night overnight shifts touch a weekend) |
+| Demo dataset | `python scripts/build_demo_dataset.py` then `python scripts/load_dataset.py --file data/demo_attendance.json` |
+| Score the detectors | `python eval/run_detectors.py --data data --out p.json` then `python eval/evaluate.py --truth data/ground_truth.csv --predictions p.json` |
+| Evaluate the LLM | `python eval/run_llm_eval.py --limit 14` then `python eval/make_report.py` |
+| Check the models | `python scripts/check-llm.py` |
 
-## Model & licence
+## Model and licence
 
-Local inference with **Qwen2.5-7B-Instruct** (and 3B for CPU checks) via Ollama. The Qwen2.5 7B/3B models are released under the Apache 2.0 licence *(verify on the model card before release — 3B is under the Qwen Research licence on some builds; Person 4 to confirm)*. No data leaves the machine. All employee data and policies are synthetic.
+Local inference with **Qwen2.5-7B-Instruct** (Apache 2.0) via Ollama. **Qwen2.5-3B-Instruct** is used for faster runs and the CPU-speed check; it is released under the Qwen Research licence, so confirm its terms on the model card before any commercial use. No data leaves the machine, and all employee data and policies are synthetic. Details: [docs/LLM.md](docs/LLM.md).
 
 ## Team
 
@@ -111,11 +97,9 @@ Local inference with **Qwen2.5-7B-Instruct** (and 3B for CPU checks) via Ollama.
 
 ## Status
 
-- [x] Phase 0 scaffolding (environment only; no application code yet)
-- [ ] Phase 1 — Data & detection
-- [ ] Phase 2 — Vertical slice
-- [ ] Phase 3 — Audit & fallback
-- [ ] Phase 4 — Polish & test
-- [ ] Phase 5 — Deliver (demo video: *TBD*)
-
-Evaluation results: `docs/eval-report.md` *(to be written)*.
+- [x] Phase 0 — setup, contracts, models running
+- [x] Phase 1 — data, detectors, database, queue
+- [x] Phase 2 — LLM call, validator, review screen
+- [x] Phase 3 — audit log, retry, fallback
+- [x] Phase 4 — tests and CI (backend, dataset and frontend unit tests; lint and types clean). Not yet done: Playwright end-to-end test, clean-machine Docker install test
+- [ ] Phase 5 — slides and the 10-minute demo video (*TBD*)

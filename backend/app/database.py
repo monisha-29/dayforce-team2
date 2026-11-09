@@ -3,7 +3,7 @@
 from collections.abc import Generator
 from typing import Any
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.config import settings
@@ -18,6 +18,21 @@ engine = create_engine(
     connect_args=connect_args,
     echo=False,
 )
+
+if settings.DATABASE_URL.startswith("sqlite") and ":memory:" not in settings.DATABASE_URL:
+
+    @event.listens_for(engine, "connect")
+    def _sqlite_pragmas(dbapi_connection: Any, _: Any) -> None:
+        """Let readers and one writer work at the same time, and wait instead of failing.
+
+        A proposal takes minutes (the model call) while managers keep approving other
+        exceptions, so the default rollback journal would raise "database is locked".
+        """
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA busy_timeout=30000")
+        cursor.close()
+
 
 SessionLocal = sessionmaker(
     autocommit=False,
