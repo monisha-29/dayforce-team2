@@ -11,5 +11,4 @@ __pycache__/
 node_modules/
 dist/
 frontend/playwright-report/
-backend/openapi.json
 .DS_Store
