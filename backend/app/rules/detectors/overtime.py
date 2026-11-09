@@ -52,16 +52,23 @@ class OvertimeDetector(BaseDetector):
         # 1. Check excessive single shift duration limit (e.g. > 12h or > 16h)
         if daily_calc.net_hours > 12.0:
             exc_id = self.generate_exception_id(employee_id, date_str, "excessive_hours")
+            is_cap = daily_calc.net_hours >= self.config.max_shift_hours
             exceptions.append(
                 TimecardException(
                     exception_id=exc_id,
                     employee_id=employee_id,
                     exception_type=self.exception_type,
                     date=date_str,
-                    severity=Severity.CRITICAL if daily_calc.net_hours >= 16.0 else Severity.HIGH,
+                    severity=Severity.CRITICAL if is_cap else Severity.HIGH,
                     description=(
-                        f"Excessive working hours: Employee worked {daily_calc.net_hours:.2f} hours, "
+                        f"Excessive working hours: Employee worked {daily_calc.net_hours:.2f} hours "
+                        f"(exceeds {self.config.max_shift_hours:.0f}h safety cap), "
                         f"substantially exceeding daily health and safety limits."
+                        if is_cap
+                        else (
+                            f"Excessive working hours: Employee worked {daily_calc.net_hours:.2f} hours, "
+                            f"substantially exceeding daily health and safety limits."
+                        )
                     ),
                     original_attendance=daily_calc.to_dict(),
                     policy_reference="OT-01",
