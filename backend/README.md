@@ -78,6 +78,8 @@ All responses serialize in `camelCase` for frontend compatibility. Base URL: `ht
 | `POST` | `/api/v1/proposals/{id}/decision` | Submit Decision | Manager action (`approve`, `edit`, `reject`) |
 | `GET` | `/api/v1/exceptions/{id}/audit` | Exception Audit Trail | Chronological audit trail for specific exception |
 | `GET` | `/api/v1/audit` | Global Audit Stream | Reverse-chronological audit log across all exceptions |
+| `GET` | `/api/v1/attendance` | Attendance Records | One row per scheduled or working employee for `?date=` (default: busiest day), with status Present, Late or Absent worked out from punches and schedules |
+| `GET` | `/api/v1/attendance/summary` | Attendance Summary | Dashboard numbers: the day's counts, its Monday–Sunday week, and the attendance rate for the last six weeks |
 
 ---
 
@@ -102,7 +104,7 @@ pip install -e "backend[dev]"
 
 ### Step 2: Ingest Attendance Dataset
 ```powershell
-python scripts/load_dataset.py --file data/sample_attendance.json
+python scripts/load_dataset.py --file data/demo_attendance.json
 ```
 
 ### Step 3: Start the Backend Server
@@ -145,9 +147,12 @@ docker compose up --build
 ```
 
 Services started:
-- `backend`: FastAPI server on port `8000` (with automated health check)
-- `ollama`: Ollama server on port `11434`
+- `backend`: FastAPI server on port `8000` (with automated health check). Built from the repository root so the image includes `policies/`, `prompts/` and the demo data; it creates its tables and loads the demo dataset on first start (`SEED_ON_START`).
+- `ollama`: Ollama server on port `11434`; `ollama-pull` downloads the Qwen models into its volume (about 6.5 GB, first start only)
+- `frontend`: the Vite dev server on port `5173`, talking to the backend on port `8000`
 - Volume `backend_data`: Persistent SQLite database storage
+
+The Docker setup has not been verified on a clean machine yet. To check a running stack, use `python scripts/e2e_smoke.py`.
 
 ---
 
@@ -155,5 +160,5 @@ Services started:
 
 - **Person 1 (Frontend):** Contract fully verified against `frontend/src/lib/api/types.ts`. All endpoints emit expected camelCase schemas (`AttendanceException`, `Proposal`, `DecisionResponse`, `AuditEvent`).
 - **Person 3 (Rules & Validation Engine):** `detector_service.py` and `rules_adapter.py` contain dynamic import hooks for `app.rules`. When branch `origin/feature/rules-validation` is merged, detector functions, hours calculators, and proposal validators resolve automatically with zero code modifications.
-- **Person 4 (LLM & Prompts):** `proposal_service.py` supports Ollama (`qwen2.5:7b`) with temperature 0.0, strict JSON schema output, and automated retry and deterministic fallback. Prompt templates are located in `prompts/`.
+- **Person 4 (LLM & Prompts):** `llm_service.py` loads the versioned prompt from `prompts/`, calls Ollama (`qwen2.5:7b`, temperature 0, JSON schema enforced), and checks that only retrieved clauses are cited. `proposal_service.py` retries once with the validator errors fed back, then falls back to the rule-based engine. See [docs/LLM.md](../docs/LLM.md).
 - **Person 5 (Attendance Dataset):** `dataset_service.py` and `scripts/load_dataset.py` support the agreed schema format (`employees`, `schedules`, `punches`, `exceptions`) with dependency-ordered loading and duplicate prevention.

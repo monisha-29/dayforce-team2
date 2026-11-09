@@ -9,7 +9,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import yaml  # type: ignore[import-untyped]
+import yaml
+
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +97,7 @@ class PolicyRegistry:
             self.load_from_directory(Path(policies_dir))
         else:
             # Check default workspace path
-            default_path = Path(__file__).resolve().parents[3] / "policies"
+            default_path = Path(settings.POLICIES_DIR)
             if default_path.is_dir():
                 self.load_from_directory(default_path)
 

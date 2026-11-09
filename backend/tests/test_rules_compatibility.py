@@ -290,7 +290,7 @@ def test_standalone_validator_detects_excessive_shift_duration_cap() -> None:
         v for v in summary.validators if v.name == ValidatorName.NEW_VIOLATION_CHECK.value
     )
     assert new_violation_check.passed is False
-    assert "16h" in new_violation_check.reason
+    assert "excessive working hours" in new_violation_check.reason.lower()
 
 
 # =============================================================================

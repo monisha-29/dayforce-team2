@@ -29,7 +29,7 @@ from app.services.policy_service import policy_service
 
 # Dynamic import boundary for Person 3's rules module
 try:
-    from app.rules import (  # type: ignore[import-not-found]  # noqa: I001
+    from app.rules import (  # noqa: I001
         FallbackEngine as Person3FallbackEngine,
         HoursCalculator as Person3HoursCalculator,
         ProposalValidator as Person3ProposalValidator,
@@ -37,7 +37,7 @@ try:
         detect_all_exceptions as person3_detect_all_exceptions,
         detect_shift_exceptions as person3_detect_shift_exceptions,
     )
-    from app.rules.models.exception import (  # type: ignore[import-not-found]
+    from app.rules.models.exception import (
         ExceptionType as Person3ExceptionType,
         Punch as Person3Punch,
         PunchType as Person3PunchType,
@@ -45,17 +45,17 @@ try:
         Severity as Person3Severity,
         TimecardException as Person3TimecardException,
     )
-    from app.rules.models.proposal import (  # type: ignore[import-not-found]
+    from app.rules.models.proposal import (
         LLMProposal as Person3LLMProposal,
         ProposedPunch as Person3ProposedPunch,
     )
-    from app.rules.models.validation import (  # type: ignore[import-not-found]
+    from app.rules.models.validation import (
         FallbackResult as Person3FallbackResult,
         ValidationCheckDetail as Person3ValidationCheckDetail,
         ValidationErrorItem as Person3ValidationErrorItem,
         ValidationResult as Person3ValidationResult,
     )
-    from app.rules.policy_loader import (  # type: ignore[import-not-found]
+    from app.rules.policy_loader import (
         policy_registry as person3_policy_registry,
     )
 
@@ -239,6 +239,7 @@ def to_detector_exception(exc: Any) -> Any:
 # =====================================================================
 # CONTRACT TRANSLATION BRIDGES
 # =====================================================================
+
 
 def timecard_to_llm_proposal(
     exception_id: str,
@@ -485,6 +486,32 @@ def validation_result_to_validator_results(validation_res: Any) -> list[Validato
 # =====================================================================
 # VALIDATION & FALLBACK IMPLEMENTATION
 # =====================================================================
+
+# Why a fallback proposal can legitimately leave the times as recorded
+NO_CHANGE_EXPLANATION: dict[str, str] = {
+    "overtime": (
+        "The hours were actually worked, so none are removed or invented; overtime needs manager "
+        "authorization (OT-01)."
+    ),
+    "schedule_conflict": (
+        "Punches are recorded as they happened; the manager decides how the deviation from the "
+        "schedule is treated (SCHED-01)."
+    ),
+    "duplicate_punch": (
+        "The repeat tap adds no time; the first punch is kept and the manager confirms removing "
+        "the duplicate (DUP-01)."
+    ),
+    "rest_period": (
+        "Punch times cannot create the missing rest; the manager documents the reason, such as a "
+        "schedule change or a voluntary swap (REST-01)."
+    ),
+    "consecutive_days": (
+        "The days were worked and are not altered; the manager authorizes the long streak or "
+        "corrects the schedule (CONSEC-01)."
+    ),
+}
+NO_TIME_CHANGE_TYPES = frozenset({"duplicate_punch", "rest_period", "consecutive_days"})
+
 
 def validate_timecard_proposal(
     proposed_tc: dict[str, Any],
@@ -745,7 +772,11 @@ def validate_timecard_proposal(
             sched_end_m = t_sched_end[0] * 60 + t_sched_end[1]
             actual_out_m = t_actual_out[0] * 60 + t_actual_out[1]
             early_mins = sched_end_m - actual_out_m
-            if early_mins > 5 and "sched" not in original_type.lower() and "conflict" not in original_type.lower():
+            if (
+                early_mins > 5
+                and "sched" not in original_type.lower()
+                and "conflict" not in original_type.lower()
+            ):
                 new_violation_errors.append(
                     f"Proposed check-out at {check_out} introduces an early departure violation ({early_mins}m before scheduled {schedule_end})."
                 )
@@ -852,11 +883,45 @@ def generate_fallback_proposal(
                 proposal=fallback_res.proposed_correction,
                 original_timecard=original_attendance,
             )
+            if not changed:
+                return {
+                    "proposed_timecard": proposed_tc,
+                    "changed_fields": [],
+                    "reason": (
+                        "No time change is proposed. "
+                        + NO_CHANGE_EXPLANATION.get(
+                            exception_type.strip().lower(),
+                            "The recorded punches stand and this exception needs a manager decision.",
+                        )
+                    ),
+                    "recommendation": (
+                        "Review the exception. Approve to acknowledge it with the recorded times "
+                        "unchanged, or reject with a reason."
+                    ),
+                    "confidence": 0.85,
+                    "missing_information": [],
+                    "blocked": False,
+                }
             return {
                 "proposed_timecard": proposed_tc,
                 "changed_fields": changed,
                 "reason": fallback_res.reason,
                 "recommendation": "Review deterministic fallback proposal aligned with policy rules.",
+                "confidence": 0.85,
+                "missing_information": [],
+                "blocked": False,
+            }
+        elif exception_type.strip().lower() in NO_TIME_CHANGE_TYPES:
+            # Punch times cannot fix these, so "keep the record as is" is the proposal.
+            return {
+                "proposed_timecard": dict(original_attendance),
+                "changed_fields": [],
+                "reason": "No time change is proposed. "
+                + NO_CHANGE_EXPLANATION[exception_type.strip().lower()],
+                "recommendation": (
+                    "Review the exception. Approve to acknowledge it with the recorded times "
+                    "unchanged, or reject with a reason."
+                ),
                 "confidence": 0.85,
                 "missing_information": [],
                 "blocked": False,

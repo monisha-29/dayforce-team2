@@ -16,8 +16,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { exceptionsQuery } from "@/lib/api/queries";
-import { attendanceOverview, TOTAL_EMPLOYEES, weeklyTrend } from "@/lib/api/mock-data";
+import { attendanceSummaryQuery, exceptionsQuery } from "@/lib/api/queries";
 import { ErrorState, PageHeader, RowsSkeleton } from "@/components/app/states";
 import { ExceptionsTable } from "@/components/app/exceptions-table";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -91,31 +90,48 @@ function Panel({
 
 function Dashboard() {
   const { data, isLoading, error, refetch } = useQuery(exceptionsQuery());
+  const { data: att, isLoading: attLoading } = useQuery(attendanceSummaryQuery());
   const n = (f: (s: string) => boolean) => data?.filter((e) => f(e.status)).length;
-  const v = (x: number | undefined) => (isLoading ? <Skeleton className="h-9 w-16" /> : (x ?? "—"));
-  const dist = ["Missing Punch", "Overtime Risk", "Schedule Conflict", "Meal Break Violation"].map(
-    (t) => ({ name: t, value: data?.filter((e) => e.type === t).length ?? 0 }),
-  );
+  const v = (x: number | undefined, loading = isLoading) =>
+    loading ? <Skeleton className="h-9 w-16" /> : (x ?? "—");
+  const dist = [
+    "Missing Punch",
+    "Overtime Risk",
+    "Schedule Conflict",
+    "Meal Break Violation",
+    "Duplicate Punch",
+    "Rest Period Violation",
+    "Consecutive Days",
+  ].map((t) => ({ name: t, value: data?.filter((e) => e.type === t).length ?? 0 }));
 
   return (
     <>
       <PageHeader
         title="Good morning, Rebecca"
-        description="Here's today's attendance and exception overview."
+        description="Attendance and exception overview, from the recorded punches."
       />
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
         <Kpi
           label="Total Employees"
-          value={TOTAL_EMPLOYEES}
+          value={v(att?.totalEmployees, attLoading)}
           icon={Users}
-          hint="Across 9 departments"
+          hint={att ? `Across ${att.departments} departments` : "—"}
         />
-        <Kpi label="Present Today" value="96" icon={UserCheck} hint="Sunday · 97% of scheduled" />
+        <Kpi
+          label="Present"
+          value={v(att ? att.present + att.late : undefined, attLoading)}
+          icon={UserCheck}
+          hint={
+            att
+              ? `${att.date} · ${att.scheduled ? Math.round((100 * (att.present + att.late)) / att.scheduled) : 0}% of ${att.scheduled} scheduled`
+              : "—"
+          }
+        />
         <Kpi
           label="Total Exceptions"
           value={v(data?.length)}
           icon={AlertTriangle}
-          hint="Last 7 days"
+          hint="All detected"
         />
         <Kpi
           label="Pending Approvals"
@@ -133,17 +149,17 @@ function Dashboard() {
 
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          <Panel title="Attendance overview · this week">
+          <Panel title={`Attendance overview · week of ${att?.days[0]?.date ?? "—"}`}>
             <div className="h-72 p-4">
               <ResponsiveContainer>
-                <BarChart data={attendanceOverview}>
+                <BarChart data={att?.days ?? []}>
                   <CartesianGrid vertical={false} stroke="var(--border)" />
-                  <XAxis dataKey="day" tickLine={false} axisLine={false} fontSize={12} />
+                  <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize={12} />
                   <YAxis tickLine={false} axisLine={false} fontSize={12} />
                   <Tooltip {...tip} cursor={{ fill: "var(--muted)" }} />
                   <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
                   <Bar dataKey="present" name="Present" stackId="a" fill="var(--chart-1)" />
-                  <Bar dataKey="leave" name="On leave" stackId="a" fill="var(--chart-3)" />
+                  <Bar dataKey="late" name="Late" stackId="a" fill="var(--chart-3)" />
                   <Bar
                     dataKey="absent"
                     name="Absent"
@@ -241,7 +257,7 @@ function Dashboard() {
           <Panel title="Weekly attendance trend">
             <div className="h-48 p-4">
               <ResponsiveContainer>
-                <AreaChart data={weeklyTrend}>
+                <AreaChart data={att?.weeks ?? []}>
                   <defs>
                     <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="var(--chart-2)" stopOpacity={0.35} />
@@ -250,7 +266,7 @@ function Dashboard() {
                   </defs>
                   <XAxis dataKey="week" tickLine={false} axisLine={false} fontSize={11} />
                   <YAxis
-                    domain={[92, 97]}
+                    domain={[0, 100]}
                     tickLine={false}
                     axisLine={false}
                     fontSize={11}

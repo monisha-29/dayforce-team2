@@ -24,6 +24,8 @@
 
 Missed punch · Overtime · Schedule conflict · Meal break
 
+Extensions added after the plan (see [RULES_SPEC.md](RULES_SPEC.md) section 3E): Duplicate punch · Rest period violation · Consecutive days
+
 ## How it works
 
 ```

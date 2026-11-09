@@ -9,9 +9,8 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
-    env: {
-      VITE_USE_MOCK_API: "true",
-    },
+    // Tests always run against the in-browser mock API, whatever .env.local says.
+    env: { VITE_USE_MOCK_API: "true" },
   },
   resolve: {
     alias: { "@": path.resolve(__dirname, "./src") },

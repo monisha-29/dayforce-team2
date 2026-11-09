@@ -13,6 +13,14 @@ from ..models.exception import (
     TimecardException,
 )
 from .base import BaseDetector
+from .cross_day import (
+    ConsecutiveDaysDetector,
+    CrossDayConfig,
+    DuplicatePunchDetector,
+    RestPeriodDetector,
+    shift_spans,
+    split_duplicate_punches,
+)
 from .meal_break import MealBreakConfig, MealBreakDetector
 from .missed_punch import MissedPunchDetector
 from .overtime import OvertimeDetector
@@ -22,9 +30,13 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "BaseDetector",
+    "ConsecutiveDaysDetector",
+    "CrossDayConfig",
+    "DuplicatePunchDetector",
     "MealBreakDetector",
     "MissedPunchDetector",
     "OvertimeDetector",
+    "RestPeriodDetector",
     "RulesConfig",
     "ScheduleConflictDetector",
     "detect_all_exceptions",
@@ -39,6 +51,7 @@ class RulesConfig:
     calculator: CalculatorConfig = field(default_factory=CalculatorConfig)
     schedule_conflict: ScheduleConflictConfig = field(default_factory=ScheduleConflictConfig)
     meal_break: MealBreakConfig = field(default_factory=MealBreakConfig)
+    cross_day: CrossDayConfig = field(default_factory=CrossDayConfig)
 
     @classmethod
     def from_policies(cls, registry: Any) -> "RulesConfig":
@@ -101,10 +114,16 @@ def detect_shift_exceptions(
     schedule: Schedule | None = None,
     config: RulesConfig | None = None,
 ) -> list[TimecardException]:
-    """Run all 4 detectors on attendance data for a single employee and shift date."""
+    """Run all per-day detectors on attendance data for a single employee and shift date."""
     cfg = config or RulesConfig()
 
+    # Duplicate punches (double taps) are reported once and removed so that the other
+    # detectors do not mistake them for a missed punch.
+    original_punches = list(punches)
+    punches, _ = split_duplicate_punches(original_punches, cfg.cross_day.duplicate_window_minutes)
+
     detectors: list[BaseDetector] = [
+        DuplicatePunchDetector(cfg.cross_day),
         MissedPunchDetector(),
         OvertimeDetector(cfg.calculator),
         ScheduleConflictDetector(cfg.schedule_conflict),
@@ -119,7 +138,9 @@ def detect_shift_exceptions(
             excs = detector.detect(
                 employee_id=employee_id,
                 date_str=date_str,
-                punches=punches,
+                punches=original_punches
+                if isinstance(detector, DuplicatePunchDetector)
+                else punches,
                 schedule=schedule,
             )
             for exc in excs:
@@ -201,6 +222,22 @@ def detect_all_exceptions(
             config=cfg,
         )
         for exc in shift_excs:
+            if exc.exception_id not in seen_ids:
+                seen_ids.add(exc.exception_id)
+                all_exceptions.append(exc)
+
+    # 5. Cross-day checks: rest between shifts and consecutive days worked
+    by_emp_date: dict[str, dict[str, list[Punch]]] = defaultdict(dict)
+    for (emp_id, shift_date), day_punches in punches_by_emp_date.items():
+        kept, _ = split_duplicate_punches(day_punches, cfg.cross_day.duplicate_window_minutes)
+        by_emp_date[emp_id][shift_date] = kept
+    rest_detector = RestPeriodDetector(cfg.cross_day)
+    streak_detector = ConsecutiveDaysDetector(cfg.cross_day)
+    for emp_id, days in by_emp_date.items():
+        spans = shift_spans(days)
+        for exc in rest_detector.detect_across_days(
+            emp_id, spans
+        ) + streak_detector.detect_across_days(emp_id, spans):
             if exc.exception_id not in seen_ids:
                 seen_ids.add(exc.exception_id)
                 all_exceptions.append(exc)

@@ -38,8 +38,9 @@ jobs:
           python-version: "3.11"
       - run: pip install -e "backend[dev]"
       - run: ruff check backend
-      - run: mypy backend/app
+      - run: mypy --config-file backend/pyproject.toml backend/app
       - run: pytest backend
+      - run: pytest tests
 
   frontend:
     needs: detect
@@ -53,7 +54,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: npm ci
+      # --legacy-peer-deps: the project was created with bun and its peer ranges need it
+      - run: npm ci --legacy-peer-deps
       - run: npm run lint --if-present
       - run: npx tsc --noEmit
       - run: npm test --if-present

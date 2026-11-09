@@ -1,0 +1,15 @@
+# Use the Ollama already running on this machine instead of downloading the models again:
+#   docker compose -f docker-compose.yml -f docker-compose.host-ollama.yml up --build
+# (Stop any local backend on port 8000 first; the UI container calls the API there.)
+services:
+  ollama:
+    profiles: ["container-ollama"]
+  ollama-pull:
+    profiles: ["container-ollama"]
+  backend:
+    depends_on: !reset []
+    environment:
+      OLLAMA_URL: http://host.docker.internal:11434
+      LLM_MODEL: qwen2.5:3b
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

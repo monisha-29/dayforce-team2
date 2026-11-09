@@ -18,7 +18,7 @@ router = APIRouter(prefix="/proposals", tags=["Proposals"])
     summary="Submit Proposal Decision",
     description="Submit manager review action (approve, edit, or reject) for a proposed timecard correction.",
 )
-async def submit_decision(
+def submit_decision(
     id: str,
     request: DecisionRequest,
     db: Annotated[Session, Depends(get_db)],

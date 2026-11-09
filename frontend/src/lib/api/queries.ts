@@ -18,6 +18,20 @@ export const auditQuery = (id: string) =>
 export const allAuditQuery = () =>
   queryOptions({ queryKey: ["audit", "all"], queryFn: () => api.getAllAudit() });
 
+export const attendanceQuery = (date?: string) =>
+  queryOptions({
+    queryKey: ["attendance", date ?? "latest"],
+    queryFn: () => api.getAttendance(date),
+    staleTime: 30_000,
+  });
+
+export const attendanceSummaryQuery = () =>
+  queryOptions({
+    queryKey: ["attendance", "summary"],
+    queryFn: () => api.getAttendanceSummary(),
+    staleTime: 30_000,
+  });
+
 function useInvalidateAll() {
   const qc = useQueryClient();
   return () =>
@@ -25,6 +39,7 @@ function useInvalidateAll() {
       qc.invalidateQueries({ queryKey: ["exceptions"] }),
       qc.invalidateQueries({ queryKey: ["exception"] }),
       qc.invalidateQueries({ queryKey: ["audit"] }),
+      qc.invalidateQueries({ queryKey: ["attendance"] }),
     ]);
 }
 

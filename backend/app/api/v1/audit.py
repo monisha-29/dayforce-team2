@@ -18,7 +18,7 @@ router = APIRouter(prefix="/audit", tags=["Audit"])
     summary="List All Audit Events",
     description="Retrieve the global chronological audit log across all exceptions and actions.",
 )
-async def list_all_audits(
+def list_all_audits(
     db: Annotated[Session, Depends(get_db)],
     limit: Annotated[int, Query(ge=1, le=500, description="Max audit entries to retrieve")] = 200,
 ) -> list[AuditEvent]:

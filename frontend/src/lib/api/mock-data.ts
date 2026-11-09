@@ -389,6 +389,24 @@ const policy: Record<ExceptionType, { title: string; clause: string; excerpt: st
     excerpt:
       "Employees working more than 6 hours must receive an uninterrupted unpaid meal period of at least 30 minutes, beginning no later than the end of the 5th hour.",
   },
+  "Duplicate Punch": {
+    title: "Duplicate Punch Handling",
+    clause: "DUP-01",
+    excerpt:
+      "When the same punch type is recorded twice within 2 minutes, the first punch is kept and the repeat is treated as a terminal double tap. A manager reviews it before it is removed.",
+  },
+  "Rest Period Violation": {
+    title: "Minimum Rest Between Shifts",
+    clause: "REST-01",
+    excerpt:
+      "Employees must have at least 8.0 hours between the end of one shift and the start of the next. Punch times must not be altered to create the required rest.",
+  },
+  "Consecutive Days": {
+    title: "Maximum Consecutive Working Days",
+    clause: "CONSEC-01",
+    excerpt:
+      "No employee may work more than 6 consecutive calendar days without a day off. The 7th consecutive day requires written manager authorization.",
+  },
 };
 
 const reasons: Record<
@@ -414,6 +432,23 @@ const reasons: Record<
     issue: "Meal period missing or shorter than 30 minutes",
     reason: "Employee worked more than 6 hours without a compliant 30-minute meal period recorded.",
     rec: "Record a compliant meal period if attested by the employee; otherwise pay meal-period premium.",
+  }),
+  "Duplicate Punch": () => ({
+    issue: "Same punch recorded twice within minutes",
+    reason:
+      "The same punch type was recorded twice within 2 minutes, which looks like a terminal double tap.",
+    rec: "Keep the first punch and remove the repeat once the manager confirms. No hours change.",
+  }),
+  "Rest Period Violation": () => ({
+    issue: "Less than 8 hours of rest between shifts",
+    reason:
+      "The gap between the previous shift end and this shift start is below the 8-hour minimum.",
+    rec: "Do not alter punch times. Document the reason (schedule change or voluntary swap) for manager review.",
+  }),
+  "Consecutive Days": () => ({
+    issue: "More than 6 consecutive days worked",
+    reason: "This is the 7th or later consecutive working day without a day off.",
+    rec: "Do not alter the attendance record. Manager authorization or a schedule correction is needed.",
   }),
 };
 
