@@ -12,9 +12,25 @@ const tone = {
 } as const;
 export type Tone = keyof typeof tone;
 
-export function Pill({ t = "neutral", className, children, dot }: { t?: Tone; className?: string; children: React.ReactNode; dot?: boolean }) {
+export function Pill({
+  t = "neutral",
+  className,
+  children,
+  dot,
+}: {
+  t?: Tone;
+  className?: string;
+  children: React.ReactNode;
+  dot?: boolean;
+}) {
   return (
-    <span className={cn("inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-medium", tone[t], className)}>
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-medium",
+        tone[t],
+        className,
+      )}
+    >
       {dot && <span className="size-1.5 rounded-full bg-current" />}
       {children}
     </span>
@@ -35,17 +51,40 @@ export const StatusBadge = ({ status }: { status: ExceptionStatus }) => (
   </Pill>
 );
 
-const sevTone: Record<Severity, Tone> = { Low: "neutral", Medium: "info", High: "warning", Critical: "danger" };
-export const SeverityBadge = ({ severity }: { severity: Severity }) => <Pill t={sevTone[severity]}>{severity}</Pill>;
+const sevTone: Record<Severity, Tone> = {
+  Low: "neutral",
+  Medium: "info",
+  High: "warning",
+  Critical: "danger",
+};
+export const SeverityBadge = ({ severity }: { severity: Severity }) => (
+  <Pill t={sevTone[severity]}>{severity}</Pill>
+);
 
 export function CheckBadge({ name, passed }: { name: string; passed: boolean }) {
   return (
-    <div className={cn("flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm", passed ? "border-success/20 bg-success-soft" : "border-destructive/30 bg-danger-soft")}>
+    <div
+      className={cn(
+        "flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm",
+        passed ? "border-success/20 bg-success-soft" : "border-destructive/30 bg-danger-soft",
+      )}
+    >
       <span className="flex items-center gap-2 font-medium text-foreground">
-        {passed ? <CheckCircle2 className="size-4 text-success" /> : <XCircle className="size-4 text-destructive" />}
+        {passed ? (
+          <CheckCircle2 className="size-4 text-success" />
+        ) : (
+          <XCircle className="size-4 text-destructive" />
+        )}
         {name}
       </span>
-      <span className={cn("font-mono text-xs font-semibold", passed ? "text-success" : "text-destructive")}>{passed ? "PASS" : "FAIL"}</span>
+      <span
+        className={cn(
+          "font-mono text-xs font-semibold",
+          passed ? "text-success" : "text-destructive",
+        )}
+      >
+        {passed ? "PASS" : "FAIL"}
+      </span>
     </div>
   );
 }

@@ -1,15 +1,11 @@
 // Frontend contract for the FastAPI backend. Replace/regenerate from the OpenAPI schema
 // (e.g. `openapi-typescript`) once available; keep field names in sync.
 
-export type ExceptionType = "Missing Punch" | "Overtime Risk" | "Schedule Conflict" | "Meal Break Violation";
+export type ExceptionType =
+  "Missing Punch" | "Overtime Risk" | "Schedule Conflict" | "Meal Break Violation";
 export type Severity = "Low" | "Medium" | "High" | "Critical";
 export type ExceptionStatus =
-  | "Pending Review"
-  | "AI Processing"
-  | "Awaiting Approval"
-  | "Approved"
-  | "Rejected"
-  | "Escalated";
+  "Pending Review" | "AI Processing" | "Awaiting Approval" | "Approved" | "Rejected" | "Escalated";
 
 export interface Employee {
   id: string;

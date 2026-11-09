@@ -193,7 +193,12 @@ def to_detector_exception(exc: Any) -> Any:
         return None
     if hasattr(exc, "exception_type") and isinstance(getattr(exc, "exception_type", None), Enum):
         return exc
-    if RULES_MODULE_AVAILABLE and Person3TimecardException is not None and Person3ExceptionType is not None:
+    if (
+        RULES_MODULE_AVAILABLE
+        and Person3TimecardException is not None
+        and Person3ExceptionType is not None
+        and Person3Severity is not None
+    ):
         raw_type = getattr(exc, "type", getattr(exc, "exception_type", "missed_punch"))
         type_str = str(getattr(raw_type, "value", raw_type)).strip().lower()
         try:
@@ -204,9 +209,9 @@ def to_detector_exception(exc: Any) -> Any:
         raw_sev = getattr(exc, "severity", "medium")
         sev_str = str(getattr(raw_sev, "value", raw_sev)).strip().lower()
         try:
-            severity = Person3Severity(sev_str) if Person3Severity else "medium"
+            severity = Person3Severity(sev_str)
         except (ValueError, KeyError):
-            severity = Person3Severity.MEDIUM if Person3Severity else "medium"
+            severity = Person3Severity.MEDIUM
 
         raw_date = getattr(exc, "date", datetime.now().date().isoformat())
         if isinstance(raw_date, datetime):
@@ -250,16 +255,18 @@ def timecard_to_llm_proposal(
 
     Constructs discrete ProposedPunch operations for each changed attendance boundary.
     """
-    punch_cls = (
-        Person3ProposedPunch
-        if RULES_MODULE_AVAILABLE and Person3ProposedPunch
-        else CompatibleProposedPunch
+    use_p3 = (
+        RULES_MODULE_AVAILABLE
+        and Person3ProposedPunch is not None
+        and Person3LLMProposal is not None
     )
-    proposal_cls = (
-        Person3LLMProposal
-        if RULES_MODULE_AVAILABLE and Person3LLMProposal
-        else CompatibleLLMProposal
-    )
+    punch_cls = Person3ProposedPunch if use_p3 else CompatibleProposedPunch
+    proposal_cls = Person3LLMProposal if use_p3 else CompatibleLLMProposal
+
+    def _make_punch_type(pt_name: str) -> Any:
+        if use_p3 and Person3PunchType is not None:
+            return Person3PunchType(pt_name)
+        return pt_name
 
     # Index existing punch types in original_punches to distinguish insert vs modify
     existing_punch_types: set[str] = set()
@@ -294,7 +301,7 @@ def timecard_to_llm_proposal(
         action = "modify" if "IN" in existing_punch_types else "insert"
         punches.append(
             punch_cls(
-                punch_type="IN",
+                punch_type=_make_punch_type("IN"),
                 timestamp=dt,
                 action=action,
                 employee_id=employee_id,
@@ -307,7 +314,7 @@ def timecard_to_llm_proposal(
         action = "modify" if "OUT" in existing_punch_types else "insert"
         punches.append(
             punch_cls(
-                punch_type="OUT",
+                punch_type=_make_punch_type("OUT"),
                 timestamp=dt,
                 action=action,
                 employee_id=employee_id,
@@ -320,7 +327,7 @@ def timecard_to_llm_proposal(
         action = "modify" if "BREAK_START" in existing_punch_types else "insert"
         punches.append(
             punch_cls(
-                punch_type="BREAK_START",
+                punch_type=_make_punch_type("BREAK_START"),
                 timestamp=dt,
                 action=action,
                 employee_id=employee_id,
@@ -333,7 +340,7 @@ def timecard_to_llm_proposal(
         action = "modify" if "BREAK_END" in existing_punch_types else "insert"
         punches.append(
             punch_cls(
-                punch_type="BREAK_END",
+                punch_type=_make_punch_type("BREAK_END"),
                 timestamp=dt,
                 action=action,
                 employee_id=employee_id,
@@ -422,6 +429,13 @@ def validation_result_to_validator_results(validation_res: Any) -> list[Validato
     for cd in check_details:
         cname = getattr(cd, "check_name", "")
         cmsg = getattr(cd, "message", "")
+        cd_details = getattr(cd, "details", {}) or {}
+        if cname == "no_new_violations" and isinstance(cd_details, dict) and "violations" in cd_details:
+            violations_list = cd_details.get("violations", [])
+            if violations_list and (
+                not cmsg or "violation(s)" in cmsg.lower() or cmsg.startswith("Proposed timecard triggered")
+            ):
+                cmsg = f"Proposed correction introduces new violation: {'; '.join(str(v) for v in violations_list)}"
         if cname and cmsg:
             detail_messages[cname] = cmsg
 
@@ -441,7 +455,18 @@ def validation_result_to_validator_results(validation_res: Any) -> list[Validato
 
         if not passed and not reason and errors:
             # Pick first relevant error message if detail message is missing
-            reason = str(getattr(errors[0], "message", errors[0]))
+            matching_err = None
+            for err in errors:
+                err_msg = str(getattr(err, "message", err))
+                err_code = str(getattr(err, "code", ""))
+                if (
+                    (key == "no_new_violations" and ("VIOLATION" in err_code or "violation" in err_msg.lower()))
+                    or (key == "limits_valid" and ("LIMIT" in err_code or "DURATION" in err_code or "safety" in err_msg.lower()))
+                    or (key == "working_hours_valid" and "hours" in err_msg.lower())
+                ):
+                    matching_err = err_msg
+                    break
+            reason = matching_err or str(getattr(errors[0], "message", errors[0]))
 
         if not reason:
             reason = f"{display_name} {'passed' if passed else 'failed'}."
@@ -521,7 +546,31 @@ def validate_timecard_proposal(
 
         from app.services.detector_service import to_detector_punch, to_detector_schedule
 
-        p3_exception = to_detector_exception(original_exception) if original_exception else None
+        if original_exception:
+            p3_exception = to_detector_exception(original_exception)
+        elif (
+            original_type
+            and Person3TimecardException is not None
+            and Person3ExceptionType is not None
+            and Person3Severity is not None
+        ):
+            try:
+                exc_type_val = Person3ExceptionType(str(original_type).strip().lower())
+            except (ValueError, KeyError):
+                exc_type_val = Person3ExceptionType.MISSED_PUNCH
+            p3_exception = Person3TimecardException(
+                exception_id=exc_id,
+                employee_id=target_emp_id,
+                exception_type=exc_type_val,
+                date=shift_date,
+                severity=Person3Severity.MEDIUM,
+                description=f"Original exception: {original_type}",
+                original_attendance=proposed_tc,
+                policy_reference=cited_clause_id or "PUNCH-01",
+                status="pending_review",
+            )
+        else:
+            p3_exception = None
         p3_punches = [to_detector_punch(p) for p in (original_punches or [])]
         p3_schedule = to_detector_schedule(original_schedule) if original_schedule else None
 

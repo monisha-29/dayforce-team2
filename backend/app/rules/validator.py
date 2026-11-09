@@ -26,6 +26,7 @@ from .models.exception import (
     ExceptionType,
     Punch,
     Schedule,
+    Severity,
     TimecardException,
 )
 from .models.proposal import LLMProposal, ProposedPunch
@@ -340,6 +341,21 @@ class ProposalValidator:
         introduced_violations: list[TimecardException] = []
         original_exc_type = original_exception.exception_type if original_exception else None
 
+        # Check maximum single shift duration safety cap (16.0h)
+        max_shift = self.config.calculator.max_shift_hours
+        if daily_calc.gross_hours > max_shift:
+            cap_exc = TimecardException(
+                exception_id=f"EXC-SHIFT-CAP-{emp_id}-{date_str}",
+                employee_id=emp_id,
+                exception_type=ExceptionType.OVERTIME,
+                date=date_str,
+                severity=Severity.CRITICAL,
+                description=f"Excessive shift duration: {daily_calc.gross_hours:.2f}h exceeds {max_shift:.0f}h safety cap.",
+                original_attendance=daily_calc.to_dict(),
+                policy_reference="OT-01",
+            )
+            introduced_violations.append(cap_exc)
+
         for n_exc in new_exceptions:
             # If it's a completely different exception type, it's definitely a new violation
             if original_exc_type is None or n_exc.exception_type != original_exc_type:
@@ -349,6 +365,9 @@ class ProposalValidator:
                 # If the proposal is specifically acknowledging or approving this exception (e.g. approving overtime),
                 # it is expected to remain and is not considered a new or unresolved violation.
                 if is_overtime_approval and n_exc.exception_type == ExceptionType.OVERTIME:
+                    # Overtime approval cannot waive shifts exceeding the 16h safety cap
+                    if daily_calc.gross_hours > max_shift or "safety cap" in n_exc.description.lower():
+                        introduced_violations.append(n_exc)
                     continue
                 if "acknowledge" in proposal.suggested_action.lower():
                     continue
@@ -363,12 +382,14 @@ class ProposalValidator:
                         field="proposed_punches",
                     )
                 )
+
+            violation_msgs = list(dict.fromkeys(v.description for v in introduced_violations))
             check_details.append(
                 ValidationCheckDetail(
                     check_name="no_new_violations",
                     passed=False,
-                    message=f"Proposed timecard triggered {len(introduced_violations)} violation(s).",
-                    details={"violations": [v.description for v in introduced_violations]},
+                    message=f"Proposed correction introduces new violation: {'; '.join(violation_msgs)}",
+                    details={"violations": violation_msgs},
                 )
             )
         else:
