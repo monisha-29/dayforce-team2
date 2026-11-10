@@ -40,20 +40,54 @@ UI <http://localhost:5173> · API docs <http://localhost:8000/docs>. The API sta
 To reuse the Ollama already running on your machine (no second 6.5 GB download), add the override file: `docker compose -f docker-compose.yml -f docker-compose.host-ollama.yml up --build`. Stop any local backend on port 8000 first, because the UI container calls the API there.
 *The Docker setup has not yet been verified on a clean machine.*
 
-**Locally on Windows (PowerShell):**
+**Locally on Windows (PowerShell), step by step from a fresh machine:**
+
+Prerequisites: Python 3.11+, Node.js 20+ and Git. About 10 GB of free disk is needed (models 6.5 GB, `node_modules` 0.5 GB). Keep the project outside OneDrive (for example `C:\dev\dayforce`), because OneDrive locks files during `npm install`.
+
+*1. Install Ollama and download the models*
 
 ```powershell
-python -m venv .venv ; .\.venv\Scripts\Activate.ps1
-pip install -e "backend[dev]"
-ollama pull qwen2.5:7b ; ollama pull qwen2.5:3b
-
-python scripts\load_dataset.py --file data\demo_attendance.json    # 92 exceptions, all 7 types
-python -m uvicorn app.main:app --app-dir backend --port 8000       # API
-
-cd frontend ; npm install --legacy-peer-deps ; npm run dev         # UI (second terminal)
+winget install Ollama.Ollama            # or download the installer from https://ollama.com/download
+# Close and reopen PowerShell so `ollama` is on PATH, then:
+ollama --version
+ollama pull qwen2.5:7b                  # main model, about 4.7 GB
+ollama pull qwen2.5:3b                  # faster model, about 1.9 GB
+ollama list                             # both should be listed
 ```
 
-Create `frontend/.env.local` containing `VITE_USE_MOCK_API=false` so the UI uses the real API instead of its built-in fake data. With it set to `true` (the default), every page shows sample data. To reload the demo data, stop the API first, delete `timecard_demo.db`, then run the load command again; this also clears saved proposals and decisions. Copy `.env.example` to `.env` to change the model or timeouts. A 7B model on CPU takes 1 to 3 minutes per proposal; set `LLM_MODEL=qwen2.5:3b` for faster demos.
+Ollama runs in the background after installing and listens on <http://localhost:11434>. If it is not running, start it with `ollama serve` in its own terminal.
+
+*2. Get the code and set up the backend*
+
+```powershell
+git clone <repo-url> dayforce ; cd dayforce
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1            # if blocked: Set-ExecutionPolicy -Scope Process Bypass
+pip install -e "backend[dev]"
+python scripts\check-llm.py             # optional: confirms the backend can reach the models
+```
+
+*3. Load the demo data and start the API*
+
+```powershell
+python scripts\load_dataset.py --file data\demo_attendance.json    # 92 exceptions, all 7 types
+python -m uvicorn app.main:app --app-dir backend --port 8000       # leave running
+```
+
+Check it at <http://localhost:8000/docs>.
+
+*4. Start the UI (second terminal)*
+
+```powershell
+cd frontend
+Set-Content .env.local "VITE_USE_MOCK_API=false"
+npm ci --legacy-peer-deps
+npm run dev
+```
+
+Open <http://localhost:5173>.
+
+`VITE_USE_MOCK_API=false` makes the UI use the real API instead of its built-in fake data. With it set to `true` (the default), every page shows sample data. To reload the demo data, stop the API first, delete `timecard_demo.db`, then run the load command again; this also clears saved proposals and decisions. Copy `.env.example` to `.env` to change the model or timeouts. A 7B model on CPU takes 1 to 3 minutes per proposal; set `LLM_MODEL=qwen2.5:3b` for faster demos.
 
 ## Repository layout
 
