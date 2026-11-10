@@ -1,0 +1,151 @@
+scenario_id,employee_id,date,exception_type,severity,policy_reference,expected,description
+BSCN00001,EMP2001,2026-11-02,overtime,medium,OT-01,exception,Daily overtime: 8.25 net hours
+BSCN00009,EMP2001,2026-11-12,missed_punch,high,PUNCH-02,exception,Scheduled shift without punches
+BSCN00016,EMP2001,2026-11-23,meal_break,medium,MEAL-01,exception,8-hour shift without a meal break
+BSCN00022,EMP2002,2026-11-03,overtime,medium,OT-01,exception,Daily overtime: 9.50 net hours
+BSCN00028,EMP2002,2026-11-11,meal_break,medium,MEAL-01,exception,8-hour shift without a meal break
+BSCN00032,EMP2002,2026-11-17,missed_punch,high,PUNCH-02,exception,Missing clock-in
+BSCN00039,EMP2002,2026-11-26,overtime,medium,OT-01,exception,Daily overtime: 9.75 net hours
+BSCN00043,EMP2003,2026-11-04,meal_break,medium,MEAL-02,exception,Meal break only 10 minutes
+BSCN00046,EMP2003,2026-11-09,meal_break,medium,MEAL-02,exception,Meal break only 20 minutes
+BSCN00054,EMP2003,2026-11-19,schedule_conflict,medium,SCHED-02,exception,Punches without an assigned schedule
+BSCN00056,EMP2003,2026-11-23,missed_punch,high,PUNCH-01,exception,Consecutive IN punches
+BSCN00066,EMP2004,2026-11-09,schedule_conflict,medium,SCHED-01,exception,Clock-out 7 minutes early
+BSCN00073,EMP2004,2026-11-18,schedule_conflict,medium,SCHED-02,exception,Punches without an assigned schedule
+BSCN00077,EMP2004,2026-11-24,missed_punch,high,PUNCH-01,exception,Missing clock-out
+BSCN00081,EMP2005,2026-11-02,missed_punch,high,PUNCH-02,exception,Missing clock-in
+BSCN00086,EMP2005,2026-11-09,missed_punch,high,PUNCH-01,exception,Missing clock-out
+BSCN00095,EMP2005,2026-11-20,overtime,medium,OT-01,exception,Daily overtime: 9.25 net hours
+BSCN00097,EMP2005,2026-11-24,schedule_conflict,medium,SCHED-02,exception,Punches without an assigned schedule
+BSCN00102,EMP2006,2026-11-03,missed_punch,high,PUNCH-01,exception,Missing clock-out
+BSCN00108,EMP2006,2026-11-11,meal_break,medium,MEAL-01,exception,8-hour shift without a meal break
+BSCN00118,EMP2006,2026-11-25,missed_punch,high,PUNCH-01,exception,Missing clock-out
+BSCN00127,EMP2007,2026-11-10,missed_punch,high,PUNCH-01,exception,Missing clock-out
+BSCN00131,EMP2007,2026-11-16,schedule_conflict,medium,SCHED-01,exception,Clock-out 6 minutes early
+BSCN00138,EMP2007,2026-11-25,overtime,medium,OT-01,exception,Daily overtime: 9.25 net hours
+BSCN00144,EMP2008,2026-11-05,overtime,medium,OT-01,exception,Daily overtime: 8.50 net hours
+BSCN00147,EMP2008,2026-11-10,overtime,medium,OT-01,exception,Daily overtime: 9.75 net hours
+BSCN00152,EMP2008,2026-11-17,missed_punch,high,PUNCH-01,exception,Consecutive IN punches
+BSCN00160,EMP2008,2026-11-27,meal_break,medium,MEAL-02,exception,Meal break only 25 minutes
+BSCN00164,EMP2009,2026-11-05,overtime,medium,OT-01,exception,Daily overtime: 9.75 net hours
+BSCN00167,EMP2009,2026-11-10,meal_break,medium,MEAL-01,exception,8-hour shift without a meal break
+BSCN00175,EMP2009,2026-11-20,overtime,medium,OT-01,exception,Daily overtime: 9.00 net hours
+BSCN00183,EMP2010,2026-11-04,missed_punch,high,PUNCH-01,exception,Consecutive IN punches
+BSCN00188,EMP2010,2026-11-11,meal_break,medium,MEAL-02,exception,Meal break only 20 minutes
+BSCN00194,EMP2010,2026-11-19,missed_punch,high,PUNCH-02,exception,Scheduled shift without punches
+BSCN00196,EMP2010,2026-11-23,missed_punch,high,PUNCH-02,exception,Scheduled shift without punches
+BSCN00205,EMP2011,2026-11-06,overtime,medium,OT-01,exception,Daily overtime: 9.50 net hours
+BSCN00211,EMP2011,2026-11-16,schedule_conflict,medium,SCHED-01,exception,Clock-in 10 minutes late
+BSCN00220,EMP2011,2026-11-27,meal_break,medium,MEAL-02,exception,Meal break only 15 minutes
+BSCN00223,EMP2012,2026-11-04,missed_punch,high,PUNCH-02,exception,Scheduled shift without punches
+BSCN00226,EMP2012,2026-11-09,schedule_conflict,medium,SCHED-01,exception,Clock-out 10 minutes early
+BSCN00246,EMP2013,2026-11-09,schedule_conflict,medium,SCHED-01,exception,Clock-in 6 minutes late
+BSCN00251,EMP2013,2026-11-16,meal_break,medium,MEAL-02,exception,Meal break only 20 minutes
+BSCN00257,EMP2013,2026-11-24,missed_punch,high,PUNCH-02,exception,Missing clock-in
+BSCN00267,EMP2014,2026-11-10,schedule_conflict,medium,SCHED-02,exception,Punches without an assigned schedule
+BSCN00283,EMP2015,2026-11-04,meal_break,medium,MEAL-02,exception,Meal break only 25 minutes
+BSCN00290,EMP2015,2026-11-13,schedule_conflict,medium,SCHED-01,exception,Clock-out 45 minutes early
+BSCN00292,EMP2015,2026-11-17,overtime,medium,OT-01,exception,Daily overtime: 9.25 net hours
+BSCN00297,EMP2015,2026-11-24,overtime,medium,OT-01,exception,Daily overtime: 9.50 net hours
+BSCN00305,EMP2016,2026-11-06,schedule_conflict,medium,SCHED-02,exception,Punches without an assigned schedule
+BSCN00308,EMP2016,2026-11-11,schedule_conflict,medium,SCHED-02,exception,Punches without an assigned schedule
+BSCN00314,EMP2016,2026-11-19,meal_break,medium,MEAL-01,exception,8-hour shift without a meal break
+BSCN00320,EMP2016,2026-11-27,missed_punch,high,PUNCH-02,exception,Scheduled shift without punches
+BSCN00330,EMP2017,2026-11-13,schedule_conflict,medium,SCHED-01,exception,Clock-in 20 minutes late
+BSCN00334,EMP2017,2026-11-19,overtime,medium,OT-01,exception,Daily overtime: 9.50 net hours
+BSCN00339,EMP2017,2026-11-26,overtime,medium,OT-01,exception,Daily overtime: 8.50 net hours
+BSCN00341,EMP2018,2026-11-02,schedule_conflict,medium,SCHED-01,exception,Clock-out 15 minutes early
+BSCN00347,EMP2018,2026-11-10,meal_break,medium,MEAL-02,exception,Meal break only 20 minutes
+BSCN00353,EMP2018,2026-11-18,missed_punch,high,PUNCH-02,exception,Scheduled shift without punches
+BSCN00360,EMP2018,2026-11-27,missed_punch,high,PUNCH-01,exception,Consecutive IN punches
+BSCN00364,EMP2019,2026-11-05,schedule_conflict,medium,SCHED-02,exception,Punches without an assigned schedule
+BSCN00369,EMP2019,2026-11-12,overtime,medium,OT-01,exception,Daily overtime: 8.25 net hours
+BSCN00379,EMP2019,2026-11-26,schedule_conflict,medium,SCHED-01,exception,Clock-in 45 minutes late
+BSCN00384,EMP2020,2026-11-05,meal_break,medium,MEAL-01,exception,8-hour shift without a meal break
+BSCN00395,EMP2020,2026-11-20,missed_punch,high,PUNCH-02,exception,Scheduled shift without punches
+BSCN00397,EMP2020,2026-11-24,overtime,medium,OT-01,exception,Daily overtime: 8.25 net hours
+BSCN00401,EMP2021,2026-11-02,schedule_conflict,medium,SCHED-02,exception,Punches without an assigned schedule
+BSCN00413,EMP2021,2026-11-18,meal_break,medium,MEAL-01,exception,8-hour shift without a meal break
+BSCN00417,EMP2021,2026-11-24,schedule_conflict,medium,SCHED-02,exception,Punches without an assigned schedule
+BSCN00423,EMP2022,2026-11-04,meal_break,medium,MEAL-02,exception,Meal break only 10 minutes
+BSCN00429,EMP2022,2026-11-12,schedule_conflict,medium,SCHED-01,exception,Clock-in 6 minutes late
+BSCN00433,EMP2022,2026-11-18,missed_punch,high,PUNCH-01,exception,Missing clock-out
+BSCN00437,EMP2022,2026-11-24,missed_punch,high,PUNCH-02,exception,Missing clock-in
+BSCN00444,EMP2023,2026-11-05,schedule_conflict,medium,SCHED-01,exception,Clock-out 30 minutes early
+BSCN00446,EMP2023,2026-11-09,meal_break,medium,MEAL-01,exception,8-hour shift without a meal break
+BSCN00453,EMP2023,2026-11-18,overtime,medium,OT-01,exception,Daily overtime: 9.75 net hours
+BSCN00458,EMP2023,2026-11-25,schedule_conflict,medium,SCHED-02,exception,Punches without an assigned schedule
+BSCN00462,EMP2024,2026-11-03,schedule_conflict,medium,SCHED-02,exception,Punches without an assigned schedule
+BSCN00470,EMP2024,2026-11-13,overtime,medium,OT-01,exception,Daily overtime: 8.25 net hours
+BSCN00485,EMP2025,2026-11-06,missed_punch,high,PUNCH-02,exception,Missing clock-in
+BSCN00489,EMP2025,2026-11-12,overtime,medium,OT-01,exception,Daily overtime: 9.00 net hours
+BSCN00494,EMP2025,2026-11-19,schedule_conflict,medium,SCHED-02,exception,Punches without an assigned schedule
+BSCN00500,EMP2025,2026-11-27,schedule_conflict,medium,SCHED-01,exception,Clock-in 45 minutes late
+BSCN00503,EMP2026,2026-11-04,meal_break,medium,MEAL-01,exception,8-hour shift without a meal break
+BSCN00506,EMP2026,2026-11-09,overtime,medium,OT-01,exception,Daily overtime: 8.50 net hours
+BSCN00520,EMP2026,2026-11-27,meal_break,medium,MEAL-01,exception,8-hour shift without a meal break
+BSCN00525,EMP2027,2026-11-06,overtime,medium,OT-01,exception,Daily overtime: 8.25 net hours
+BSCN00530,EMP2027,2026-11-13,meal_break,medium,MEAL-01,exception,8-hour shift without a meal break
+BSCN00532,EMP2027,2026-11-17,schedule_conflict,medium,SCHED-01,exception,Clock-out 45 minutes early
+BSCN00550,EMP2028,2026-11-13,missed_punch,high,PUNCH-01,exception,Missing clock-out
+BSCN00553,EMP2028,2026-11-18,missed_punch,high,PUNCH-02,exception,Scheduled shift without punches
+BSCN00557,EMP2028,2026-11-24,missed_punch,high,PUNCH-02,exception,Missing clock-in
+BSCN00562,EMP2029,2026-11-03,schedule_conflict,medium,SCHED-01,exception,Clock-out 6 minutes early
+BSCN00568,EMP2029,2026-11-11,meal_break,medium,MEAL-01,exception,8-hour shift without a meal break
+BSCN00572,EMP2029,2026-11-17,meal_break,medium,MEAL-01,exception,8-hour shift without a meal break
+BSCN00580,EMP2029,2026-11-27,meal_break,medium,MEAL-02,exception,Meal break only 25 minutes
+BSCN00581,EMP2030,2026-11-02,missed_punch,high,PUNCH-02,exception,Scheduled shift without punches
+BSCN00587,EMP2030,2026-11-10,missed_punch,high,PUNCH-01,exception,Consecutive IN punches
+BSCN00595,EMP2030,2026-11-20,overtime,medium,OT-01,exception,Daily overtime: 9.25 net hours
+BSCN00604,EMP2031,2026-11-05,meal_break,medium,MEAL-02,exception,Meal break only 20 minutes
+BSCN00609,EMP2031,2026-11-12,overtime,medium,OT-01,exception,Daily overtime: 9.25 net hours
+BSCN00612,EMP2031,2026-11-17,missed_punch,high,PUNCH-01,exception,Missing clock-out
+BSCN00618,EMP2031,2026-11-25,schedule_conflict,medium,SCHED-01,exception,Clock-in 10 minutes late
+BSCN00623,EMP2032,2026-11-04,schedule_conflict,medium,SCHED-01,exception,Clock-out 30 minutes early
+BSCN00639,EMP2032,2026-11-26,meal_break,medium,MEAL-02,exception,Meal break only 10 minutes
+BSCN00644,EMP2033,2026-11-05,overtime,medium,OT-01,exception,Daily overtime: 9.50 net hours
+BSCN00649,EMP2033,2026-11-12,missed_punch,high,PUNCH-02,exception,Scheduled shift without punches
+BSCN00654,EMP2033,2026-11-19,schedule_conflict,medium,SCHED-01,exception,Clock-in 7 minutes late
+BSCN00657,EMP2033,2026-11-24,schedule_conflict,medium,SCHED-01,exception,Clock-in 7 minutes late
+BSCN00663,EMP2034,2026-11-04,overtime,medium,OT-01,exception,Daily overtime: 9.00 net hours
+BSCN00668,EMP2034,2026-11-11,meal_break,medium,MEAL-01,exception,8-hour shift without a meal break
+BSCN00673,EMP2034,2026-11-18,overtime,medium,OT-01,exception,Daily overtime: 8.75 net hours
+BSCN00680,EMP2034,2026-11-27,missed_punch,high,PUNCH-02,exception,Missing clock-in
+BSCN00685,EMP2035,2026-11-06,schedule_conflict,medium,SCHED-01,exception,Clock-out 10 minutes early
+BSCN00689,EMP2035,2026-11-12,meal_break,medium,MEAL-02,exception,Meal break only 25 minutes
+BSCN00693,EMP2035,2026-11-18,missed_punch,high,PUNCH-01,exception,Consecutive IN punches
+BSCN00700,EMP2035,2026-11-27,schedule_conflict,medium,SCHED-01,exception,Clock-in 45 minutes late
+BSCN00705,EMP2036,2026-11-06,overtime,medium,OT-01,exception,Daily overtime: 9.50 net hours
+BSCN00708,EMP2036,2026-11-11,schedule_conflict,medium,SCHED-01,exception,Clock-in 10 minutes late
+BSCN00712,EMP2036,2026-11-17,missed_punch,high,PUNCH-02,exception,Missing clock-in
+BSCN00716,EMP2036,2026-11-23,missed_punch,high,PUNCH-01,exception,Consecutive IN punches
+BSCN00725,EMP2037,2026-11-06,missed_punch,high,PUNCH-01,exception,Missing clock-out
+BSCN00727,EMP2037,2026-11-10,missed_punch,high,PUNCH-02,exception,Missing clock-in
+BSCN00735,EMP2037,2026-11-20,schedule_conflict,medium,SCHED-02,exception,Punches without an assigned schedule
+BSCN00737,EMP2037,2026-11-24,missed_punch,high,PUNCH-02,exception,Missing clock-in
+BSCN00749,EMP2038,2026-11-12,overtime,medium,OT-01,exception,Daily overtime: 8.75 net hours
+BSCN00754,EMP2038,2026-11-19,schedule_conflict,medium,SCHED-01,exception,Clock-in 45 minutes late
+BSCN00760,EMP2038,2026-11-27,meal_break,medium,MEAL-01,exception,8-hour shift without a meal break
+BSCN00765,EMP2039,2026-11-06,missed_punch,high,PUNCH-01,exception,Missing clock-out
+BSCN00766,EMP2039,2026-11-09,overtime,medium,OT-01,exception,Daily overtime: 9.00 net hours
+BSCN00774,EMP2039,2026-11-19,overtime,medium,OT-01,exception,Daily overtime: 9.50 net hours
+BSCN00780,EMP2039,2026-11-27,schedule_conflict,medium,SCHED-01,exception,Clock-in 15 minutes late
+BSCN00784,EMP2040,2026-11-05,missed_punch,high,PUNCH-01,exception,Consecutive IN punches
+BSCN00788,EMP2040,2026-11-11,overtime,medium,OT-01,exception,Daily overtime: 9.00 net hours
+BSCN00797,EMP2040,2026-11-24,schedule_conflict,medium,SCHED-01,exception,Clock-out 10 minutes early
+BSCN00802,EMP2041,2026-11-03,schedule_conflict,medium,SCHED-01,exception,Clock-out 20 minutes early
+BSCN00810,EMP2041,2026-11-13,overtime,medium,OT-01,exception,Daily overtime: 9.00 net hours
+BSCN00811,EMP2041,2026-11-16,meal_break,medium,MEAL-01,exception,8-hour shift without a meal break
+BSCN00825,EMP2042,2026-11-06,overtime,medium,OT-01,exception,Daily overtime: 8.50 net hours
+BSCN00827,EMP2042,2026-11-10,meal_break,medium,MEAL-02,exception,Meal break only 15 minutes
+BSCN00832,EMP2042,2026-11-17,overtime,medium,OT-01,exception,Daily overtime: 8.50 net hours
+BSCN00839,EMP2042,2026-11-26,missed_punch,high,PUNCH-01,exception,Consecutive IN punches
+BSCN00841,EMP2043,2026-11-02,meal_break,medium,MEAL-02,exception,Meal break only 10 minutes
+BSCN00849,EMP2043,2026-11-12,schedule_conflict,medium,SCHED-01,exception,Clock-in 20 minutes late
+BSCN00851,EMP2043,2026-11-16,overtime,medium,OT-01,exception,Daily overtime: 9.25 net hours
+BSCN00860,EMP2043,2026-11-27,meal_break,medium,MEAL-01,exception,8-hour shift without a meal break
+BSCN00875,EMP2044,2026-11-20,schedule_conflict,medium,SCHED-01,exception,Clock-out 30 minutes early
+BSCN00878,EMP2044,2026-11-25,missed_punch,high,PUNCH-01,exception,Consecutive IN punches
+BSCN00883,EMP2045,2026-11-04,meal_break,medium,MEAL-02,exception,Meal break only 15 minutes
+BSCN00889,EMP2045,2026-11-12,meal_break,medium,MEAL-02,exception,Meal break only 10 minutes
+BSCN00891,EMP2045,2026-11-16,meal_break,medium,MEAL-01,exception,8-hour shift without a meal break
