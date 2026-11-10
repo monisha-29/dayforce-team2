@@ -104,9 +104,9 @@ def load_prompt(name: str) -> Template:
 TYPE_GUIDANCE: dict[str, str] = {
     "missed_punch": (
         "Fill in only the missing punch: the scheduled start for a missing clock-in, or the "
-        "scheduled end for a missing clock-out, as the cited clause says. If no schedule exists, or "
-        "the shift would be 5 hours or longer with no recorded meal punches, keep the original "
-        "timecard, list what is missing and ask the manager to verify the real times."
+        "scheduled end for a missing clock-out, as the cited clause says. If no schedule exists, "
+        "keep the original timecard, list what is missing and ask the manager to verify the real "
+        "times."  # DEMO: the "5 hours with no meal punches" refusal was removed so the AI fills the punch
     ),
     "overtime": (
         "The hours were really worked, so do not change any time. Return the original timecard "
