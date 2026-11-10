@@ -78,9 +78,15 @@ def _apply_timecard_to_punches(
                 break
 
         if match is not None:
+            if match.timestamp == target_dt:
+                return  # approved as-is: leave the recorded punch (and its source/notes) alone
+            # Keep the employee's original note and record what the time used to be.
+            previous = f"{match.notes} | " if match.notes else ""
+            match.notes = (
+                f"{previous}Updated via manager review on {date_str} (was {match.timestamp:%H:%M})"
+            )
             match.timestamp = target_dt
             match.source = source
-            match.notes = f"Updated via manager review on {date_str}"
         else:
             new_punch = PunchModel(
                 id=f"PUNCH-{uuid.uuid4().hex[:12].upper()}",
@@ -214,7 +220,11 @@ def record_decision(
             status="success",
             trace_id=t_id,
             exception_id=exc.id,
-            detail="Approved AI proposal.",
+            detail=(
+                f"Approved: {request.reason.strip()}"
+                if request.reason and request.reason.strip()
+                else "Approved AI proposal."
+            ),
             flags=[],
         )
 

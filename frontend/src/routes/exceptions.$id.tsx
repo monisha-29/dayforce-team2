@@ -8,7 +8,9 @@ import {
   BookOpen,
   Bot,
   Check,
+  CalendarDays,
   CircleAlert,
+  Clock,
   Loader2,
   Lock,
   Pencil,
@@ -24,7 +26,7 @@ import {
   useRegenerate,
 } from "@/lib/api/queries";
 import { validateEdited } from "@/lib/api/client";
-import type { ExceptionDetail, Proposal, Timecard } from "@/lib/api/types";
+import type { ExceptionDetail, Proposal, PunchKind, Timecard } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -123,6 +125,222 @@ function Review() {
   return <ReviewBody e={data} />;
 }
 
+const PUNCH_LABEL: Record<PunchKind, string> = {
+  IN: "Clock in",
+  OUT: "Clock out",
+  BREAK_START: "Meal start",
+  BREAK_END: "Meal end",
+};
+
+/** What the detector found, in words: visible before any proposal exists. */
+export function DetectedIssueCard({ e }: { e: ExceptionDetail }) {
+  if (!e.detectedIssue) return null;
+  return (
+    <section
+      data-testid="detected-issue"
+      className="mb-6 flex items-start gap-3 rounded-xl border border-warning/40 bg-warning-soft p-4"
+    >
+      <CircleAlert className="mt-0.5 size-5 shrink-0 text-warning" />
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-warning">
+          What was detected
+        </p>
+        <p className="mt-1 text-sm font-medium text-foreground">{e.detectedIssue}</p>
+      </div>
+    </section>
+  );
+}
+
+/** Rest-period and consecutive-days exceptions span several days; show those days. */
+export function RelatedShiftsCard({ e }: { e: ExceptionDetail }) {
+  if (!e.contextShifts || e.contextShifts.length === 0) return null;
+  return (
+    <Card title="Shifts behind this exception" icon={CalendarDays} className="mt-6">
+      {e.contextSummary && (
+        <p className="mb-3 rounded-lg border border-warning/30 bg-warning-soft px-3 py-2 text-sm font-medium text-warning">
+          {e.contextSummary}
+        </p>
+      )}
+      <table className="w-full text-sm" data-testid="related-shifts">
+        <thead>
+          <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
+            <th className="pb-2 font-medium">Date</th>
+            <th className="pb-2 font-medium">Clock in</th>
+            <th className="pb-2 font-medium">Clock out</th>
+          </tr>
+        </thead>
+        <tbody>
+          {e.contextShifts.map((s) => (
+            <tr
+              key={s.date}
+              className={cn("border-t", s.date === e.date && "bg-muted/60 font-medium")}
+            >
+              <td className="py-2 pr-4">
+                {fmtDate(s.date)}
+                {s.date === e.date && (
+                  <span className="ml-2 text-xs text-muted-foreground">this exception</span>
+                )}
+              </td>
+              <td className="py-2 pr-4 font-mono">{to12(s.start)}</td>
+              <td className="py-2 font-mono">
+                {s.end ? to12(s.end) : "Missing"}
+                {s.endDate && (
+                  <span className="ml-2 text-xs text-muted-foreground">{fmtDate(s.endDate)}</span>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </Card>
+  );
+}
+
+/** The raw punches behind the exception: the timecard below hides repeats and gaps. */
+export function PunchesCard({ e }: { e: ExceptionDetail }) {
+  if (!e.punches || e.punches.length === 0) return null;
+  return (
+    <Card title="Recorded punches" icon={Clock} className="mt-6">
+      {e.schedule && (
+        <p className="mb-3 text-xs text-muted-foreground">
+          Assigned schedule {to12(e.schedule.start)}–{to12(e.schedule.end)}
+        </p>
+      )}
+      <table className="w-full text-sm" data-testid="punch-table">
+        <thead>
+          <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
+            <th className="pb-2 font-medium">Time</th>
+            <th className="pb-2 font-medium">Punch</th>
+            <th className="pb-2 font-medium">Source</th>
+            <th className="pb-2 font-medium">Note</th>
+          </tr>
+        </thead>
+        <tbody>
+          {e.punches.map((p) => (
+            <tr
+              key={p.id}
+              className={cn("border-t", p.isDuplicate && "bg-warning-soft")}
+              data-duplicate={p.isDuplicate || undefined}
+            >
+              <td className="py-2 pr-4 font-mono">
+                {to12(p.time)}
+                {p.date !== e.date && (
+                  <span className="ml-2 text-xs text-muted-foreground">{fmtDate(p.date)}</span>
+                )}
+              </td>
+              <td className="py-2 pr-4">
+                {PUNCH_LABEL[p.type]}
+                {p.isDuplicate && (
+                  <Pill t="warning" className="ml-2">
+                    Duplicate
+                  </Pill>
+                )}
+              </td>
+              <td className="py-2 pr-4 text-muted-foreground">{p.source}</td>
+              <td className="py-2 text-muted-foreground">{p.notes ?? "—"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </Card>
+  );
+}
+
+/** What the manager's buttons mean when the exception has no time fix. */
+export const DECISION_COPY: Record<
+  string,
+  {
+    authorize: string;
+    authorizeShort: string;
+    authorizeHelp: string;
+    decline: string;
+    declineHelp: string;
+  }
+> = {
+  "Consecutive Days": {
+    authorize: "Authorize the extra day",
+    authorizeShort: "Authorize",
+    authorizeHelp:
+      "The extra day was needed or agreed. The times stay as recorded and your note is kept in the audit trail.",
+    decline: "Don't authorize",
+    declineHelp:
+      "The day should not have been worked or scheduled. Record why; HR or scheduling follows up outside this system.",
+  },
+  "Rest Period Violation": {
+    authorize: "Accept the short rest",
+    authorizeShort: "Accept",
+    authorizeHelp:
+      "The short rest was a schedule change or a voluntary swap. The times stay as recorded.",
+    decline: "Not acceptable",
+    declineHelp: "Record why, so scheduling can correct the pattern.",
+  },
+  "Duplicate Punch": {
+    authorize: "Confirm the duplicate",
+    authorizeShort: "Confirm",
+    authorizeHelp:
+      "The repeat was a double tap. Hours already use the first punch, so nothing changes.",
+    decline: "Not a duplicate",
+    declineHelp: "Record what actually happened.",
+  },
+  "Overtime Risk": {
+    authorize: "Authorize the overtime",
+    authorizeShort: "Authorize",
+    authorizeHelp: "The hours were worked and approved. The times stay as recorded.",
+    decline: "Don't authorize",
+    declineHelp: "Record why the overtime was not approved.",
+  },
+  "Schedule Conflict": {
+    authorizeShort: "Excuse",
+    authorize: "Excuse the deviation",
+    authorizeHelp: "The punches stand and the deviation from the schedule is accepted.",
+    decline: "Don't excuse",
+    declineHelp: "Record why the deviation is not accepted.",
+  },
+};
+
+/** Exceptions with no time fix: the AI's useful output is a recommended decision, not a timecard. */
+export function RecommendedDecisionCard({ e, p }: { e: ExceptionDetail; p: Proposal }) {
+  const copy = DECISION_COPY[e.type];
+  return (
+    <Card title="Recommended decision" icon={Sparkles} className="ring-1 ring-warning/30">
+      <div data-testid="recommended-decision" className="space-y-4 text-sm">
+        <div className="rounded-lg border border-border bg-muted px-3 py-2 text-xs font-medium text-muted-foreground">
+          <CircleAlert className="mr-1.5 inline size-4" />
+          The recorded times are correct, so no timecard change is proposed. This needs a decision,
+          not an edit.
+        </div>
+        <div>
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">AI recommendation</p>
+          <p className="mt-1 font-medium">{p.recommendation}</p>
+        </div>
+        {!copy && p.blocked && (
+          <p className="text-muted-foreground">
+            This cannot be approved as it stands. Use “Edit times” to record what you verified (for
+            example the meal break that was taken), reject with a reason, or escalate.
+          </p>
+        )}
+        {copy && (
+          <div>
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Your options</p>
+            <ul className="mt-2 space-y-2">
+              <li>
+                <span className="font-medium">{copy.authorize}:</span> {copy.authorizeHelp}
+              </li>
+              <li>
+                <span className="font-medium">{copy.decline}:</span> {copy.declineHelp}
+              </li>
+              <li>
+                <span className="font-medium">Escalate to HR:</span> You are not sure, or someone
+                else must decide.
+              </li>
+            </ul>
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
 function ReviewBody({ e }: { e: ExceptionDetail }) {
   const p = e.proposal;
   const decided = e.status === "Approved" || e.status === "Rejected";
@@ -142,7 +360,10 @@ function ReviewBody({ e }: { e: ExceptionDetail }) {
         <StatusBadge status={e.status} />
       </div>
 
-      <Card title="Employee information">
+      <DetectedIssueCard e={e} />
+      <RelatedShiftsCard e={e} />
+
+      <Card title="Employee information" className={e.contextShifts?.length ? "mt-6" : ""}>
         <dl className="grid grid-cols-2 gap-4 text-sm md:grid-cols-5">
           {[
             ["Employee", e.employee.name],
@@ -162,6 +383,8 @@ function ReviewBody({ e }: { e: ExceptionDetail }) {
         </dl>
       </Card>
 
+      <PunchesCard e={e} />
+
       {!p ? (
         <NoProposal e={e} />
       ) : (
@@ -170,19 +393,35 @@ function ReviewBody({ e }: { e: ExceptionDetail }) {
             <Card title="Original timecard" icon={Lock}>
               <TimecardList tc={e.original} />
             </Card>
-            <Card
-              title="AI-proposed timecard"
-              icon={Sparkles}
-              className={e.status === "Approved" ? "" : "ring-1 ring-warning/30"}
-            >
-              {e.status !== "Approved" && (
-                <div className="mb-4 flex items-center gap-2 rounded-lg border border-warning/30 bg-warning-soft px-3 py-2 text-xs font-medium text-warning">
-                  <CircleAlert className="size-4" /> Suggested values — UNAPPROVED until a manager
-                  approves them.
-                </div>
-              )}
-              <TimecardList tc={p.proposed} original={e.original} changed={p.changedFields} />
-            </Card>
+            {p.changedFields.length === 0 ? (
+              <RecommendedDecisionCard e={e} p={p} />
+            ) : (
+              <Card
+                title="AI-proposed timecard"
+                icon={Sparkles}
+                className={e.status === "Approved" ? "" : "ring-1 ring-warning/30"}
+              >
+                {e.status !== "Approved" && (
+                  <div className="mb-4 flex items-center gap-2 rounded-lg border border-warning/30 bg-warning-soft px-3 py-2 text-xs font-medium text-warning">
+                    <CircleAlert className="size-4" /> Suggested values — UNAPPROVED until a manager
+                    approves them.
+                  </div>
+                )}
+                {e.status !== "Approved" && !p.blocked && p.changedFields.length === 0 && (
+                  <div
+                    data-testid="no-change-notice"
+                    className="mb-4 flex items-center gap-2 rounded-lg border border-border bg-muted px-3 py-2 text-xs font-medium text-muted-foreground"
+                  >
+                    <CircleAlert className="size-4 shrink-0" />
+                    <span>
+                      <strong>No time change proposed.</strong> The recorded times stand and a
+                      manager decision is needed. {p.recommendation}
+                    </span>
+                  </div>
+                )}
+                <TimecardList tc={p.proposed} original={e.original} changed={p.changedFields} />
+              </Card>
+            )}
           </div>
 
           <div className="mt-6 grid gap-6 lg:grid-cols-3">
@@ -211,45 +450,54 @@ function TimecardList({
   original?: Timecard;
   changed?: (keyof Timecard)[];
 }) {
+  const noMeal =
+    !!tc.checkIn && !!tc.checkOut && !tc.mealStart && !tc.mealEnd && (tc.totalHours ?? 0) >= 5;
   return (
-    <dl className="divide-y">
-      {fields.map(({ k, label }) => {
-        const isChanged = changed.includes(k);
-        const missing = tc[k] === null;
-        return (
-          <div
-            key={k}
-            className={cn(
-              "flex items-center justify-between rounded-md px-2 py-2.5 text-sm",
-              isChanged && "bg-highlight",
-            )}
-          >
-            <dt className="text-muted-foreground">{label}</dt>
-            <dd className="flex items-center gap-2">
-              {isChanged && original && (
-                <span className="text-xs text-muted-foreground line-through">
-                  {show(k, original[k])}
-                </span>
+    <>
+      <dl className="divide-y">
+        {fields.map(({ k, label }) => {
+          const isChanged = changed.includes(k);
+          const missing = tc[k] === null;
+          return (
+            <div
+              key={k}
+              className={cn(
+                "flex items-center justify-between rounded-md px-2 py-2.5 text-sm",
+                isChanged && "bg-highlight",
               )}
-              <span
-                className={cn(
-                  "font-mono font-medium",
-                  missing && "text-destructive",
-                  isChanged && "text-primary",
+            >
+              <dt className="text-muted-foreground">{label}</dt>
+              <dd className="flex items-center gap-2">
+                {isChanged && original && (
+                  <span className="text-xs text-muted-foreground line-through">
+                    {show(k, original[k])}
+                  </span>
                 )}
-              >
-                {show(k, tc[k])}
-              </span>
-              {isChanged && (
-                <Pill t="warning" className="px-1.5 py-0 text-[10px]">
-                  Changed
-                </Pill>
-              )}
-            </dd>
-          </div>
-        );
-      })}
-    </dl>
+                <span
+                  className={cn(
+                    "font-mono font-medium",
+                    missing && "text-destructive",
+                    isChanged && "text-primary",
+                  )}
+                >
+                  {show(k, tc[k])}
+                </span>
+                {isChanged && (
+                  <Pill t="warning" className="px-1.5 py-0 text-[10px]">
+                    Changed
+                  </Pill>
+                )}
+              </dd>
+            </div>
+          );
+        })}
+      </dl>
+      {noMeal && (
+        <p data-testid="no-meal-note" className="mt-2 px-2 text-xs text-muted-foreground">
+          No meal break is recorded, so no break time is deducted from the total.
+        </p>
+      )}
+    </>
   );
 }
 
@@ -347,8 +595,10 @@ function Decision({ e, p, decided }: { e: ExceptionDetail; p: Proposal; decided:
   const [step, setStep] = useState<"form" | "preview">("form");
   const m = useDecision(p.id);
   const esc = useEscalate(e.id);
-  const busy = m.isPending || esc.isPending;
+  const regen = useRegenerate(e.id);
+  const busy = m.isPending || esc.isPending || regen.isPending;
   const { errors, hours } = validateEdited(edit);
+  const copy = p.changedFields.length === 0 ? DECISION_COPY[e.type] : undefined;
 
   const submit = (body: Parameters<typeof m.mutate>[0]) =>
     m.mutate(body, {
@@ -377,7 +627,7 @@ function Decision({ e, p, decided }: { e: ExceptionDetail; p: Proposal; decided:
         </p>
       ) : (
         <div className="space-y-3">
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-3 gap-2 [&>button]:h-auto [&>button]:min-h-9 [&>button]:whitespace-normal [&>button]:py-2 [&>button]:leading-tight">
             <Button
               onClick={() => open("approve")}
               disabled={busy || p.blocked}
@@ -385,11 +635,11 @@ function Decision({ e, p, decided }: { e: ExceptionDetail; p: Proposal; decided:
               className="bg-success text-primary-foreground hover:bg-success/90"
             >
               <Check className="size-4" />
-              Approve
+              {copy ? copy.authorizeShort : "Approve"}
             </Button>
             <Button variant="outline" onClick={() => open("edit")} disabled={busy}>
               <Pencil className="size-4" />
-              Edit
+              Edit times
             </Button>
             <Button
               variant="outline"
@@ -398,7 +648,7 @@ function Decision({ e, p, decided }: { e: ExceptionDetail; p: Proposal; decided:
               className="border-destructive/40 text-destructive hover:bg-danger-soft hover:text-destructive"
             >
               <X className="size-4" />
-              Reject
+              {copy ? copy.decline : "Reject"}
             </Button>
           </div>
           {p.blocked && (
@@ -418,6 +668,27 @@ function Decision({ e, p, decided }: { e: ExceptionDetail; p: Proposal; decided:
               Escalate to HR Operations
             </Button>
           )}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full"
+            data-testid="regenerate-proposal"
+            onClick={() =>
+              regen.mutate(undefined, {
+                onSuccess: () => toast.success("New proposal generated"),
+                onError: (err) =>
+                  toast.error("Could not generate a proposal", { description: err.message }),
+              })
+            }
+            disabled={busy}
+          >
+            {regen.isPending ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <RotateCw className="size-4" />
+            )}
+            {regen.isPending ? "Generating… this can take a minute or two" : "Regenerate proposal"}
+          </Button>
           <p className="text-xs text-muted-foreground">
             Decisions are sent to the backend. This screen never edits a timecard directly.
           </p>
@@ -427,19 +698,35 @@ function Decision({ e, p, decided }: { e: ExceptionDetail; p: Proposal; decided:
       <Dialog open={dlg === "approve"} onOpenChange={(o) => !busy && !o && setDlg(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Approve AI proposal?</DialogTitle>
+            <DialogTitle>{copy ? `${copy.authorize}?` : "Approve AI proposal?"}</DialogTitle>
             <DialogDescription>
-              Your approval will be submitted to the backend for {e.employee.name} ({e.id}). The
-              timecard is only updated by the backend after it accepts your authorized approval —
-              the status here changes only after a successful response.
+              {copy
+                ? `${copy.authorizeHelp} This will be recorded for ${e.employee.name} (${e.id}).`
+                : `Your approval will be submitted to the backend for ${e.employee.name} (${e.id}). The timecard is only updated by the backend after it accepts your authorized approval — the status here changes only after a successful response.`}
             </DialogDescription>
           </DialogHeader>
+          <Textarea
+            value={reason}
+            onChange={(ev) => setReason(ev.target.value)}
+            placeholder="Optional note for the audit trail"
+            rows={3}
+          />
           <DialogFooter>
             <Button variant="outline" onClick={() => setDlg(null)} disabled={busy}>
               Cancel
             </Button>
-            <Button onClick={() => submit({ decision: "approve" })} disabled={busy}>
-              {m.isPending && <Loader2 className="size-4 animate-spin" />}Confirm approval
+            <Button
+              onClick={() =>
+                submit(
+                  reason.trim()
+                    ? { decision: "approve", reason: reason.trim() }
+                    : { decision: "approve" },
+                )
+              }
+              disabled={busy}
+            >
+              {m.isPending && <Loader2 className="size-4 animate-spin" />}
+              {copy ? "Confirm" : "Confirm approval"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -448,9 +735,10 @@ function Decision({ e, p, decided }: { e: ExceptionDetail; p: Proposal; decided:
       <Dialog open={dlg === "reject"} onOpenChange={(o) => !busy && !o && setDlg(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Reject proposal</DialogTitle>
+            <DialogTitle>{copy ? copy.decline : "Reject proposal"}</DialogTitle>
             <DialogDescription>
-              Provide a reason. It will be recorded in the audit trail.
+              {copy ? `${copy.declineHelp} ` : ""}Provide a reason. It will be recorded in the audit
+              trail.
             </DialogDescription>
           </DialogHeader>
           <Textarea
@@ -536,6 +824,12 @@ function Decision({ e, p, decided }: { e: ExceptionDetail; p: Proposal; decided:
                     />
                   </div>
                 ))}
+              {!edit.mealStart && !edit.mealEnd && (
+                <p className="col-span-2 text-xs text-muted-foreground">
+                  Meal times are never filled in automatically. Enter the break only if the employee
+                  confirms they took one.
+                </p>
+              )}
               <div className="col-span-2 rounded-md bg-muted px-3 py-2 text-sm">
                 Calculated hours: <span className="font-mono font-medium">{hours ?? "—"}</span>
               </div>
@@ -613,7 +907,7 @@ function Decision({ e, p, decided }: { e: ExceptionDetail; p: Proposal; decided:
 function NoProposal({ e }: { e: ExceptionDetail }) {
   const regen = useRegenerate(e.id);
   const esc = useEscalate(e.id);
-  const processing = e.status === "AI Processing";
+  const processing = e.status === "AI Processing" || regen.isPending;
   return (
     <div className="mt-6 grid gap-6 lg:grid-cols-2">
       <Card title="Original timecard" icon={Lock}>
@@ -628,16 +922,16 @@ function NoProposal({ e }: { e: ExceptionDetail }) {
           )}
         </div>
         <p className="font-semibold">
-          {processing ? "AI is analyzing this exception" : "AI proposal unavailable"}
+          {processing ? "AI is analyzing this exception" : "Generate an AI proposal"}
         </p>
         <p className="max-w-sm text-sm text-muted-foreground">
           {processing
-            ? "A correction proposal is being generated and validated. Check back shortly."
-            : "The agent could not produce a safe correction with the available evidence. Retry generation or escalate for manual handling."}
+            ? "A policy-grounded proposal is being generated and validated. A local model is used, so this can take a minute or two."
+            : "No proposal has been generated yet. Click “Generate proposal” and the AI will draft a policy-grounded correction for you to review. This can take a minute or two."}
         </p>
         <div className="flex gap-2">
           <Button
-            variant="outline"
+            size="lg"
             disabled={regen.isPending}
             onClick={() =>
               regen.mutate(undefined, {
@@ -656,10 +950,12 @@ function NoProposal({ e }: { e: ExceptionDetail }) {
             ) : (
               <RotateCw className="size-4" />
             )}
-            Retry generation
+            Generate proposal
           </Button>
           {e.status !== "Escalated" && (
             <Button
+              variant="outline"
+              size="lg"
               disabled={esc.isPending}
               onClick={() =>
                 esc.mutate("No AI proposal available.", {

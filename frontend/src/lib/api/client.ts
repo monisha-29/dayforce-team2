@@ -2,7 +2,9 @@
 // VITE_USE_MOCK_API=false to switch off the in-browser mock. The UI only calls
 // these functions, so swapping mock -> real needs no UI changes.
 import type {
+  AttendanceDay,
   AttendanceException,
+  AttendanceSummary,
   AuditEvent,
   DecisionRequest,
   DecisionResponse,
@@ -11,7 +13,15 @@ import type {
   Proposal,
   Timecard,
 } from "./types";
-import { audits, computeHours, exceptions, proposals } from "./mock-data";
+import {
+  attendanceOverview,
+  audits,
+  computeHours,
+  exceptions,
+  proposals,
+  TOTAL_EMPLOYEES,
+  weeklyTrend,
+} from "./mock-data";
 
 export const API_BASE_URL =
   (import.meta.env["VITE_API_BASE_URL"] as string | undefined) ?? "http://localhost:8000/api/v1";
@@ -257,6 +267,61 @@ export const api = {
     if (!USE_MOCK) return http(`/exceptions/${id}/audit`);
     await delay();
     return clone(audits[id] ?? []);
+  },
+
+  /** Attendance records for one day (default: the latest day with data). */
+  async getAttendance(date?: string): Promise<AttendanceDay> {
+    if (!USE_MOCK) return http(`/attendance${date ? `?date=${encodeURIComponent(date)}` : ""}`);
+    await delay();
+    const day = date ?? "2026-11-08";
+    const seen = new Set<string>();
+    const records = exceptions
+      .filter((e) => e.date === day && !seen.has(e.employee.id) && seen.add(e.employee.id))
+      .map((e) => ({
+        employeeId: e.employee.id,
+        name: e.employee.name,
+        department: e.employee.department,
+        shift: e.employee.shift,
+        scheduledStart: e.employee.shiftStart,
+        scheduledEnd: e.employee.shiftEnd,
+        checkIn: e.original.checkIn,
+        checkOut: e.original.checkOut,
+        status: "Present" as const,
+        exceptionIds: exceptions
+          .filter((x) => x.date === day && x.employee.id === e.employee.id)
+          .map((x) => x.id),
+      }));
+    return clone({ date: day, minDate: day, maxDate: day, records });
+  },
+
+  /** Dashboard attendance numbers (default: the busiest day with data). */
+  async getAttendanceSummary(): Promise<AttendanceSummary> {
+    if (!USE_MOCK) return http(`/attendance/summary`);
+    await delay();
+    const days = attendanceOverview.map((d, i) => ({
+      date: `2026-11-${String(2 + i).padStart(2, "0")}`,
+      label: d.day,
+      present: d.present,
+      late: 0,
+      absent: d.absent,
+    }));
+    const last = days[days.length - 1]!;
+    return clone({
+      date: last.date,
+      totalEmployees: TOTAL_EMPLOYEES,
+      departments: 9,
+      scheduled: last.present + last.absent,
+      present: last.present,
+      late: 0,
+      absent: last.absent,
+      days,
+      weeks: weeklyTrend.map((w) => ({
+        week: w.week,
+        start: "",
+        rate: w.rate,
+        exceptions: w.exceptions,
+      })),
+    });
   },
 
   async getAllAudit(): Promise<AuditEvent[]> {

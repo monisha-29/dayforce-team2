@@ -114,6 +114,9 @@ function Queue() {
               "Overtime Risk",
               "Schedule Conflict",
               "Meal Break Violation",
+              "Duplicate Punch",
+              "Rest Period Violation",
+              "Consecutive Days",
             ]}
           />
           <F

@@ -10,14 +10,20 @@ from app.database import get_db
 from app.models.employee import EmployeeModel
 from app.models.exception import ExceptionModel
 from app.models.proposal import ProposalModel
+from app.models.punch import PunchModel
+from app.models.schedule import ScheduleModel
+from app.rules.detectors.cross_day import split_duplicate_punches
 from app.schemas import (
     AttendanceException,
     AuditEvent,
+    ContextShift,
     DecisionResponse,
     Employee,
     EscalateRequest,
     ExceptionDetail,
     Proposal,
+    PunchRecord,
+    ScheduleWindow,
     Timecard,
     ValidatorResult,
 )
@@ -27,6 +33,7 @@ from app.services.audit_service import (
 )
 from app.services.decision_service import escalate_exception_workflow
 from app.services.proposal_service import generate_proposal_for_exception
+from app.services.timecard import shift_context, shift_window
 
 router = APIRouter(prefix="/exceptions", tags=["Exceptions"])
 
@@ -37,6 +44,9 @@ TYPE_DISPLAY_MAP: dict[str, str] = {
     "overtime": "Overtime Risk",
     "schedule_conflict": "Schedule Conflict",
     "meal_break": "Meal Break Violation",
+    "duplicate_punch": "Duplicate Punch",
+    "rest_period": "Rest Period Violation",
+    "consecutive_days": "Consecutive Days",
 }
 
 STATUS_DISPLAY_MAP: dict[str, str] = {
@@ -208,7 +218,7 @@ def build_filter_candidates(val: str, mapping: dict[str, str]) -> list[str]:
     summary="List Attendance Exceptions",
     description="Retrieve a list of attendance exceptions with optional filtering by search term, type, status, and severity.",
 )
-async def list_exceptions(
+def list_exceptions(
     db: Annotated[Session, Depends(get_db)],
     search: Annotated[
         str | None,
@@ -264,13 +274,48 @@ async def list_exceptions(
     return [to_attendance_exception_schema(r) for r in records]
 
 
+def load_shift_evidence(
+    db: Session, exc: ExceptionModel
+) -> tuple[list[PunchRecord], ScheduleWindow | None]:
+    """The raw punches of the exception's shift (duplicates included) and its schedule."""
+    rows = db.query(PunchModel).filter(PunchModel.employee_id == exc.employee_id).all()
+    window = shift_window(rows, exc.date)
+    _, duplicates = split_duplicate_punches(window)
+    duplicate_ids = {d.id for d, _ in duplicates}
+    punches = [
+        PunchRecord(
+            id=p.id,
+            type=str(p.punch_type),
+            date=p.timestamp.strftime("%Y-%m-%d"),
+            time=p.timestamp.strftime("%H:%M"),
+            source=p.source,
+            notes=p.notes,
+            is_duplicate=p.id in duplicate_ids,
+        )
+        for p in window
+    ]
+    sched = (
+        db.query(ScheduleModel)
+        .filter(ScheduleModel.employee_id == exc.employee_id, ScheduleModel.date == exc.date)
+        .first()
+    )
+    window_schema = (
+        ScheduleWindow(
+            start=sched.start_time.strftime("%H:%M"), end=sched.end_time.strftime("%H:%M")
+        )
+        if sched
+        else None
+    )
+    return punches, window_schema
+
+
 @router.get(
     "/{id}",
     response_model=ExceptionDetail,
     summary="Get Exception Detail",
     description="Retrieve full details for an attendance exception, including employee data, original timecard, and active AI proposal.",
 )
-async def get_exception(
+def get_exception(
     id: str,
     db: Annotated[Session, Depends(get_db)],
 ) -> ExceptionDetail:
@@ -291,7 +336,14 @@ async def get_exception(
             detail=f"Exception '{id}' not found.",
         )
 
-    return to_exception_detail_schema(exc)
+    detail = to_exception_detail_schema(exc)
+    detail.detected_issue = exc.description
+    detail.punches, detail.schedule = load_shift_evidence(db, exc)
+    rows = db.query(PunchModel).filter(PunchModel.employee_id == exc.employee_id).all()
+    shifts, summary = shift_context(rows, exc.type, exc.date)
+    detail.context_shifts = [ContextShift(**s) for s in shifts]
+    detail.context_summary = summary
+    return detail
 
 
 @router.post(
@@ -300,7 +352,7 @@ async def get_exception(
     summary="Generate Proposal",
     description="Trigger proposal generation (with policy retrieval, validation, retry, and fallback) for an exception.",
 )
-async def generate_proposal(
+def generate_proposal(
     id: str,
     db: Annotated[Session, Depends(get_db)],
 ) -> Proposal:
@@ -332,7 +384,7 @@ async def generate_proposal(
     summary="Escalate Exception",
     description="Escalate an unresolved or contentious exception directly to HR operations/manager.",
 )
-async def escalate_exception(
+def escalate_exception(
     id: str,
     request: EscalateRequest,
     db: Annotated[Session, Depends(get_db)],
@@ -351,7 +403,7 @@ async def escalate_exception(
     summary="Get Exception Audit Trail",
     description="Retrieve the chronological, append-only audit trail for a specific exception.",
 )
-async def get_exception_audit(
+def get_exception_audit(
     id: str,
     db: Annotated[Session, Depends(get_db)],
 ) -> list[AuditEvent]:
